@@ -11,7 +11,7 @@ COPY . .
 RUN pip install --no-cache-dir python-dotenv
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir discord openai==0.28 requests
+RUN pip install --no-cache-dir discord openai requests
 
 # Copy .env file into the container at /usr/src/app
 
