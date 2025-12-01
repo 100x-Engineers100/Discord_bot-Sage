@@ -56,7 +56,7 @@ async def describe_image(image_url, user_query=None):
         
         # Send a chat completion request to OpenAI
         response = client.responses.create(
-            model="gpt-5",
+            model="gpt-4.1-mini",
             input=[
                 {
                     "role": "system",
