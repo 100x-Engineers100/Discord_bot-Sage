@@ -1,0 +1,307 @@
+====================================================================================================
+CURRICULUM INDEX - 100xEngineers Applied AI Cohort
+====================================================================================================
+
+
+====================================================================================================
+MODULE 1: DIFFUSION
+====================================================================================================
+
+WEEK 1
+------
+Lecture 1: Orientation — Tags: Introduction to GenAI evolution, Key milestones, Open-source research, Diffusion models overview, Playground AI, Generative tasks, 100x Curriculum introduction, Program structure
+
+Lecture 2: History of GenAI, Tensor Art — Tags: GenAI evolution, Historical milestones, AI development, Open-source models, Effective research techniques, Tensor AI platform, Diffusion models, Generative AI fundamentals, Hands-on usage
+
+Practice Set 1
+
+
+WEEK 2
+------
+Lecture 3: How Diffusion Works — Tags: Diffusion models overview, Diffusion fundamentals, Forward diffusion, Reverse diffusion, Model mechanics, Technical foundations, Why diffusion matters, Core concepts
+
+Lecture 4: Introduction to SDXL & ComfyUI — Tags: Stable Diffusion XL, SDXL architecture, ComfyUI interface, Node-based workflows, Visual programming, Workflow building, Image generation pipeline
+
+Practice Set 2
+
+
+WEEK 3
+------
+Lecture 5: ControlNet and IP Adapters — Tags: ControlNet theory, Pose control, Depth maps, Canny edges, IP-Adapter, Style transfer, Conditioning images, Precise image control, Advanced guidance
+
+Lecture 6: Advanced Image Workflow ComfyUI, Intro to Flux Models — Tags: Advanced workflows, ComfyUI mastery, Complex pipelines, FLUX introduction, Next-generation models, Image workflow optimization
+
+Assignment 1
+
+
+WEEK 4
+------
+Lecture 7: Flux Tools and Flux Models, Qwen Image Model — Tags: FLUX tools, FLUX architecture, Model comparison, Qwen integration, Image generation, Advanced models, Multi-model workflows
+
+Lecture 8: Qwen Image Model — Tags: Qwen model deep-dive, Chinese AI models, Image generation, Model capabilities, Qwen workflows, Advanced image generation
+
+
+WEEK 5
+------
+Lecture 9: Flux LoRA Training — Tags: LoRA training, FLUX fine-tuning, Custom training, Model customization, Training workflows, Hyperparameter tuning, Transfer learning
+
+Lecture 10: Wan Video Model — Tags: Wan model, Text-to-video, Video generation, Video diffusion, Dynamic content creation, Video synthesis
+
+Assignment 2
+
+
+WEEK 6
+------
+Lecture 11: Video Inpainting, Outpainting and Video ControlNets — Tags: Video inpainting, Video outpainting, Video ControlNets, Video editing, Video manipulation, Advanced video tools, Temporal consistency
+
+Lecture 12: Infinite Talk, HuMo Model [Video plus Audio] — Tags: Infinite Talk, HuMo model, Video and audio generation, Multimodal models, Audio-visual synthesis, Character animation
+
+
+WEEK 7
+------
+Lecture 13: Wan Animate and Advanced Video Workflows — Tags: Wan Animate, Advanced video workflows, Video animation, Complex video pipelines, Professional video creation, Video composition
+
+Lecture 14: Deploying Model to Replicate - Closing — Tags: Model deployment, Replicate platform, Production deployment, API creation, Serverless deployment, Model hosting, ComfyUI to production, Module closure
+
+
+WEEK 8
+------
+Mid-Cohort Capstone Project — Tags: Capstone project, Portfolio development, Module integration, Hands-on application, Project showcase, Skill demonstration
+
+
+====================================================================================================
+MODULE 2: LLM FULL-STACK (CODE TRACK)
+====================================================================================================
+
+FULL STACK FOUNDATIONS
+-----------------------
+
+WEEK 1
+------
+Lecture: Orientation + Introduction to Full Stack — Tags: Roadmap overview, Prerequisites, Program philosophy, UI fundamentals, Full-stack architecture, Dos and Don'ts, Module orientation, Success fundamentals
+
+Lecture: UI Building (Practical) — Tags: User interface fundamentals, UI types, ChatGPT UI deconstruction, Python UI building, Gradio framework, HuggingFace Spaces deployment, Interactive demos, Practical implementation
+
+
+WEEK 2
+------
+Lecture: Intro to APIs (Theory) — Tags: API fundamentals, First principles approach, System connectivity, REST APIs, HTTP methods, API architecture, Postman, curl commands, Client-server model
+
+Lecture: Building APIs with FastAPI (Practical) — Tags: FastAPI framework, CRUD operations, API development, API deployment, OpenAPI documentation, Swagger UI, API testing, Robust API design
+
+
+WEEK 3
+------
+Lecture: Domain Modeling, ERD and Intro to Database — Tags: Domain modeling fundamentals, Entity-Relationship diagrams, Database schemas, Data structures, Relationship mapping, Scalable design, Real-world use cases
+
+Lecture: Connecting the Dots & Database: Supabase (SQL) (Practical) — Tags: Database basics, Notion database, Airtable, Frontend-backend connection, UI-API-Database integration, Supabase platform, Relational databases, NoSQL comparison, SQL queries
+
+
+WEEK 4
+------
+Lecture: Intro to VibeCode — Tags: AI-powered development, Cursor IDE, Lovable platform, Claude Code, Development acceleration, AI-assisted coding, Full-stack architecture, Modern development tools
+
+Lecture: MVP Building Workshop — Tags: Complete application building, Full-stack MVP, One-session build, Application deployment, GitHub integration, Rapid prototyping, MVP strategy, Build-measure-learn
+
+
+WEEK 5
+------
+Lecture: Hackathon Kickoff — Tags: Project ideas, Team formation, Mentor introductions, Hackathon preparation, Collaborative building
+
+Lecture: Build Jam Session — Tags: Hands-on building, Mentor support, Peer collaboration, Active development, Team building
+
+
+LLM DEEPDIVE
+------------
+
+WEEK 6
+------
+Lecture: Intro to LLMs — Tags: LLM fundamentals, Transformer architecture, Attention mechanism, Training process, AI ecosystem, Models and APIs, Infrastructure, LLM integration, Chatbot deployment, Open-source LLMs
+
+Lecture: Prompt Engineering: Building LLM Wrappers — Tags: Effective prompting, LLM wrapper applications, GPT integration, LLaMA models, GroqCloud, Prompt optimization, LLM application design, API integration
+
+
+WEEK 7
+------
+Lecture: Function/Tool Calling and MCP (Theory) — Tags: Context engineering, Tool calling fundamentals, Model Context Protocol introduction, MCP architecture, LLM capabilities extension, Tool integration theory
+
+Lecture: Function and Tool Calling in LLM (Practical) — Tags: Tool calling implementation, Practical MCP, Hands-on implementation, Building MCPs, Function calling patterns, Real-world examples
+
+
+WEEK 8
+------
+Lecture: Introduction to Retrieval-Augmented Generation (RAG) (Theory) — Tags: RAG fundamentals, Vector embeddings, Vector databases, Memory extension, RAG architecture, Information retrieval, First principles approach
+
+Lecture: Building RAG Apps with Three Levels (Practical) — Tags: RAG system setup, Vector database implementation, End-to-end RAG applications, Practical RAG building, Three-level approach, Hands-on development
+
+
+WEEK 9
+------
+Lecture: Advanced RAG Techniques — Tags: RAG optimization, Hybrid search, Knowledge graphs, Industrial case studies, Indexing workflows, Retrieval optimization, RAG stages, LLM memory
+
+Lecture: Memory RAG Techniques — Tags: Memory fundamentals, Memory importance, Memory types, Design patterns, Claude Skills, Mem0, Supermemory, Memory integration
+
+
+LLM FINE-TUNING
+---------------
+
+WEEK 10
+-------
+Lecture: Building and Architecting GenAI Applications — Tags: Complete GenAI applications, Multiple LLM techniques integration, Serverless deployment, Application architecture, End-to-end systems, Production deployment
+
+Lecture: Introduction to Fine-tuning LLMs — Tags: Fine-tuning fundamentals, When to fine-tune, Why fine-tune, Fine-tuning techniques, Cost considerations, Resource planning, Model customization
+
+
+WEEK 11
+-------
+Lecture: Data Preparation Techniques for Fine-tuning — Tags: Prompting + Tools + RAG + Memory integration, High-quality datasets, Data preparation, Data formatting, Data validation, Fine-tuning execution, Dataset quality
+
+Lecture: Data Preparation Techniques — Tags: Advanced data preparation, Dataset curation, Data processing, Quality assurance, Fine-tuning optimization
+
+
+WEEK 12
+-------
+Lecture: Evaluation of LLMs — Tags: GenAI architecture patterns, Deployment strategies, Model evaluation, Performance metrics, LLM assessment
+
+Lecture: Connecting Dots - LLM Module — Tags: Application building, Decision-making framework, Tool selection, Integration strategies, Module synthesis, Comprehensive understanding
+
+
+====================================================================================================
+MODULE 2: LLM FULL-STACK (NO-CODE TRACK)
+====================================================================================================
+
+FULL STACK FOUNDATIONS
+-----------------------
+
+WEEK 1
+------
+Lecture: Orientation + Introduction to Full Stack — Tags: Roadmap overview, Prerequisites, Program philosophy, UI fundamentals, Full-stack architecture, Dos and Don'ts, Module orientation, Success fundamentals
+
+Lecture: Building Your First UI with No-Code Tools — Tags: User interface fundamentals, UI types, ChatGPT UI deconstruction, No-code UI building, Visual development, HuggingFace Spaces deployment, Accessible development
+
+
+WEEK 2
+------
+Lecture: Intro to APIs (Theory) — Tags: API fundamentals, First principles approach, System connectivity, REST APIs, HTTP methods, API architecture, Postman, curl commands, Client-server model
+
+Lecture: Plug, Play, Automate: APIs to No-Code Workflows — Tags: No-code API integration, Workflow automation, Visual API connections, Automation patterns, No-code platforms, API orchestration
+
+
+WEEK 3
+------
+Lecture: Domain Modeling, ERD and Intro to Database — Tags: Domain modeling fundamentals, Entity-Relationship diagrams, Database schemas, Data structures, Relationship mapping, Scalable design, Real-world use cases
+
+Lecture: Database: Supabase (SQL) (Practical) — Tags: Supabase platform, Database integration, SQL basics, No-code database, Visual database design, Relational databases
+
+
+WEEK 4
+------
+Lecture: Intro to VibeCode — Tags: AI-powered development, Cursor IDE, Lovable platform, Claude Code, Development acceleration, AI-assisted coding, Full-stack architecture, Modern development tools
+
+Lecture: MVP Building — Tags: MVP development, No-code MVP, Rapid prototyping, Application deployment, Quick validation, Lean methodology
+
+
+WEEK 5
+------
+Lecture: Hackathon Kickoff — Tags: Project ideas, Team formation, Mentor introductions, Hackathon preparation, Collaborative building
+
+Lecture: Build Jam Session — Tags: Hands-on building, Mentor support, Peer collaboration, Active development, Team building
+
+
+LLM DEEPDIVE
+------------
+
+WEEK 6
+------
+Lecture: Intro to LLMs — Tags: LLM fundamentals, Transformer architecture, Attention mechanism, Training process, AI ecosystem, Models and APIs, Infrastructure, LLM integration, Chatbot deployment, Open-source LLMs
+
+Lecture: Prompt Engineering: Building LLM Wrappers — Tags: Effective prompting, LLM wrapper applications, GPT integration, LLaMA models, GroqCloud, Prompt optimization, LLM application design, API integration
+
+
+WEEK 7
+------
+Lecture: Function/Tool Calling and MCP (Theory) — Tags: Context engineering, Tool calling fundamentals, Model Context Protocol introduction, MCP architecture, LLM capabilities extension, Tool integration theory
+
+Lecture: Function and Tool Calling in LLM (Practical) — Tags: Tool calling implementation, Practical MCP, No-code tool integration, Visual function calling, MCP implementation
+
+
+WEEK 8
+------
+Lecture: Introduction to Retrieval-Augmented Generation (RAG) (Theory) — Tags: RAG fundamentals, Vector embeddings, Vector databases, Memory extension, RAG architecture, Information retrieval, First principles approach
+
+Lecture: Building RAG Based Apps (Practical) — Tags: RAG system setup, Vector database implementation, End-to-end RAG applications, No-code RAG building, Visual RAG design, Hands-on development
+
+
+WEEK 9
+------
+Lecture: Advanced RAG Techniques — Tags: RAG optimization, Hybrid search, Knowledge graphs, Industrial case studies, Indexing workflows, Retrieval optimization, RAG stages, LLM memory
+
+Lecture: Memory RAG Techniques — Tags: Memory fundamentals, Memory importance, Memory types, Design patterns, Claude Skills, Mem0, Supermemory, Memory integration
+
+
+LLM FINE-TUNING
+---------------
+
+WEEK 10
+-------
+Lecture: Building and Architecting GenAI Applications — Tags: Complete GenAI applications, Multiple LLM techniques integration, Serverless deployment, Application architecture, End-to-end systems, Production deployment
+
+Lecture: Introduction to Fine-tuning LLMs — Tags: Fine-tuning fundamentals, When to fine-tune, Why fine-tune, Fine-tuning techniques, Cost considerations, Resource planning, Model customization
+
+
+WEEK 11
+-------
+Lecture: Data Preparation Techniques for Fine-tuning — Tags: Prompting + Tools + RAG + Memory integration, High-quality datasets, Data preparation, Data formatting, Data validation, Fine-tuning execution, Dataset quality
+
+Lecture: Data Preparation Techniques — Tags: Advanced data preparation, Dataset curation, Data processing, Quality assurance, Fine-tuning optimization
+
+
+WEEK 12
+-------
+Lecture: Evaluation of LLMs — Tags: GenAI architecture patterns, Deployment strategies, Model evaluation, Performance metrics, LLM assessment
+
+Lecture: Connecting Dots - LLM Module — Tags: Application building, Decision-making framework, Tool selection, Integration strategies, Module synthesis, Comprehensive understanding
+
+
+====================================================================================================
+MODULE 3: AI AGENTS (CODE & NO-CODE TRACK)
+====================================================================================================
+
+WEEK 1
+------
+Lecture 1: Introduction to AI Agents — Tags: AI agents fundamentals, What are AI agents, LLM vs Agentic apps, Design patterns, Best practices, Core principles, Agent Levels framework, LLM to agents transition, Agentic workflows
+
+Lecture 2: Building Your First AI Agent — Tags: First agent build, Hands-on implementation, Agent components, Three-level learning approach, Basic agent development, Practical coding, Agent construction, Implementation patterns
+
+
+WEEK 2
+------
+Lecture 3: Understanding Multi-Agent Systems — Tags: Multi-agent architectures, Agent communication protocols, Communication strategies, System coordination, Multi-agent fundamentals, Distributed agents, Agent collaboration
+
+Lecture 4: Multi Agents — Tags: Agent coordination, Collaboration strategies, When to use multi-agent systems, Multi-agent patterns, Agent orchestration, System design, Use case analysis
+
+
+WEEK 3
+------
+Lecture 5: Hands-on Building AI Agents with SDKs — Tags: OpenAI Agents SDK, Agents Kit, Claude Agents SDK, Google ADK, Agent-to-Agent (A2A), MCP integration, Agent memory patterns, Framework implementation, SDK mastery
+
+Lecture 6: Applying Guardrails, Monitoring and Evaluation — Tags: Guardrails implementation, Safe agent behavior, Agent monitoring, Performance monitoring, Evaluation frameworks, Safety patterns, Quality assurance, Production monitoring
+
+
+WEEK 4
+------
+Lecture 7: Agentic Workflows — Tags: End-to-end agentic systems, Multiple agent combination, Real-world use cases, Workflow patterns, Complex systems, Agent integration, Production workflows, System architecture
+
+Lecture 8: Agent Deployment & Production Patterns — Tags: Production deployment, Agent scaling, Cost optimization, Deployment strategies, Infrastructure considerations, Performance optimization, Production readiness, Enterprise deployment
+
+
+WEEK 5
+------
+Lecture 9: Connecting Dots from Every Module — Tags: Knowledge graph, Curriculum synthesis, Full Stack + LLM + Agents integration, How modules connect, Career paths, Next steps, Comprehensive understanding, Future opportunities
+
+Lecture 10: Final Capstone Sprint Kickoff — Tags: Project selection, Project planning, Team formation, Mentor matching, Capstone preparation, Final project, Sprint planning, Team collaboration
+
+
+====================================================================================================
+END OF CURRICULUM INDEX
+====================================================================================================
