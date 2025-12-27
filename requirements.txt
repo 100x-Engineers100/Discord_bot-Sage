@@ -24,11 +24,9 @@ tqdm==4.67.1
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 yarl==1.22.0
-Flask==3.0.3
 
-
-python-dotenv==1.2.1
-torch==2.6.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.6.0+cpu
 langchain==0.3.0
 langchain-community==0.3.0
 langchain-text-splitters==0.3.0
