@@ -44,7 +44,7 @@ OPENAI_MODEL = "gpt-4.1-mini"
 # RAG Configuration
 CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 150
-MAX_HISTORY_MESSAGES = 6  # Reduced from 10 to prevent context bloat
+MAX_HISTORY_MESSAGES = 8  # Reduced from 10 to prevent context bloat
 
 # Message Configuration
 MAX_DISCORD_MESSAGE_LENGTH = 1900
