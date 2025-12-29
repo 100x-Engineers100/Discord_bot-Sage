@@ -32,3 +32,4 @@ torch==2.6.0+cpu
 langchain==0.3.0
 langchain-community==0.3.0
 langchain-text-splitters==0.3.0
+sentence-transformers
