@@ -551,7 +551,7 @@ def split_long_message(content: str) -> List[str]:
 @bot.event
 async def on_ready():
     """Initialize bot components."""
-    global openai_client, vector_store
+    global openai_client
     
     print(f'Bot logged in as {bot.user.name} (ID: {bot.user.id})')
     print('----------------------------------------')
@@ -559,13 +559,32 @@ async def on_ready():
     openai_client = OpenAI(api_key=OPENAI_API_KEY)
     print('✓ OpenAI client initialized')
     
-    print('Loading curriculum data...')
-    text = load_and_preprocess_text(DATA_FILE_PATH)
-    vector_store = create_vector_store(text)
-    print('✓ RAG system initialized')
+    # Start vector store initialization in background (non-blocking)
+    bot.loop.create_task(initialize_vector_store())
     
+    print('✓ Vector store initialization started in background')
     print('----------------------------------------')
     print('Bot is ready! Clarification loop prevention: ACTIVE')
+
+
+async def initialize_vector_store():
+    """Background task to initialize vector store without blocking heartbeat."""
+    global vector_store
+    
+    try:
+        print('Loading curriculum data...')
+        text = load_and_preprocess_text(DATA_FILE_PATH)
+        
+        print('Creating vector store (this may take a minute)...')
+        # Run CPU-intensive task in executor to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        vector_store = await loop.run_in_executor(None, create_vector_store, text)
+        
+        print('✓ RAG system fully initialized and ready!')
+    except Exception as e:
+        print(f'❌ Error initializing vector store: {e}')
+        print('Bot will continue without RAG functionality')
+
 
 
 @bot.event
