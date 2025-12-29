@@ -9,6 +9,7 @@ Features:
 - Image analysis support via OpenAI Vision
 - Forum thread detection with bot mention handling
 - Smart message splitting for long responses
+- Interactive feedback system with Discord buttons
 """
 
 import os
@@ -19,6 +20,7 @@ from dotenv import load_dotenv
 
 import discord
 from discord.ext import commands
+from discord.ui import Button, View
 
 import torch
 from openai import OpenAI
@@ -54,6 +56,12 @@ MAX_DISCORD_MESSAGE_LENGTH = 1900  # Discord limit is 2000, keeping buffer
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE_PATH = os.path.join(BASE_DIR, "Data_Doc_main.txt")
 
+# Mentor IDs for tagging
+MENTOR_IDS = [
+    "<@1389934019030028380>",  # Mekashi
+    "<@1352199617877381150>"   # Omkar
+]
+
 # ============================================================================
 # GLOBAL STATE
 # ============================================================================
@@ -61,6 +69,10 @@ DATA_FILE_PATH = os.path.join(BASE_DIR, "Data_Doc_main.txt")
 # Store conversation history per thread
 # Structure: {thread_id: [{"role": "user/assistant", "content": "..."}]}
 conversation_history: Dict[int, List[Dict[str, str]]] = {}
+
+# Store pending feedback requests (to track which messages are awaiting feedback)
+# Structure: {message_id: {"thread_id": int, "user_id": int}}
+pending_feedback: Dict[int, Dict[str, int]] = {}
 
 # RAG components (initialized on bot startup)
 vector_store = None
@@ -80,6 +92,132 @@ intents.messages = True  # Required to receive message events
 
 # Initialize bot with command prefix (not used for slash commands, but required)
 bot = commands.Bot(command_prefix='!', intents=intents)
+
+# ============================================================================
+# FEEDBACK SYSTEM - DISCORD UI VIEWS
+# ============================================================================
+
+class FeedbackView(View):
+    """
+    Discord UI View with buttons for initial feedback.
+    Asks: "Did this answer your question?"
+    """
+    def __init__(self, user_id: int, thread_id: int):
+        super().__init__(timeout=None)  # No timeout - buttons stay active
+        self.user_id = user_id
+        self.thread_id = thread_id
+    
+    @discord.ui.button(label="✅ Got it, thanks!", style=discord.ButtonStyle.success)
+    async def got_it_button(self, interaction: discord.Interaction, button: Button):
+        """Handle 'Got it' button click."""
+        # Only allow original user to click
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "This feedback is for the person who asked the question! 😊",
+                ephemeral=True
+            )
+            return
+        
+        # Send positive acknowledgment
+        await interaction.response.send_message(
+            "Awesome! 🚀 Happy learning!",
+            ephemeral=False
+        )
+        
+        # Disable buttons after interaction
+        for item in self.children:
+            item.disabled = True
+        await interaction.message.edit(view=self)
+        
+        # Remove from pending feedback
+        if interaction.message.id in pending_feedback:
+            del pending_feedback[interaction.message.id]
+    
+    @discord.ui.button(label="🔄 Need more help", style=discord.ButtonStyle.secondary)
+    async def need_help_button(self, interaction: discord.Interaction, button: Button):
+        """Handle 'Need more help' button click."""
+        # Only allow original user to click
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "This feedback is for the person who asked the question! 😊",
+                ephemeral=True
+            )
+            return
+        
+        # Disable current buttons
+        for item in self.children:
+            item.disabled = True
+        await interaction.message.edit(view=self)
+        
+        # Show follow-up options
+        follow_up_view = FollowUpView(self.user_id, self.thread_id)
+        await interaction.response.send_message(
+            "No worries, let's figure this out! What would you prefer?",
+            view=follow_up_view,
+            ephemeral=False
+        )
+        
+        # Remove from pending feedback
+        if interaction.message.id in pending_feedback:
+            del pending_feedback[interaction.message.id]
+
+
+class FollowUpView(View):
+    """
+    Discord UI View with buttons for follow-up actions.
+    Asks: "Continue here or tag mentors?"
+    """
+    def __init__(self, user_id: int, thread_id: int):
+        super().__init__(timeout=None)
+        self.user_id = user_id
+        self.thread_id = thread_id
+    
+    @discord.ui.button(label="💬 Continue here", style=discord.ButtonStyle.primary)
+    async def continue_button(self, interaction: discord.Interaction, button: Button):
+        """Handle 'Continue here' button click."""
+        # Only allow original user to click
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "This option is for the person who asked the question! 😊",
+                ephemeral=True
+            )
+            return
+        
+        await interaction.response.send_message(
+            "Got it! What's still unclear or what else can I help with?",
+            ephemeral=False
+        )
+        
+        # Disable buttons
+        for item in self.children:
+            item.disabled = True
+        await interaction.message.edit(view=self)
+    
+    @discord.ui.button(label="🏴 Tag the crew", style=discord.ButtonStyle.danger)
+    async def tag_mentors_button(self, interaction: discord.Interaction, button: Button):
+        """Handle 'Tag mentors' button click."""
+        # Only allow original user to click
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "This option is for the person who asked the question! 😊",
+                ephemeral=True
+            )
+            return
+        
+        # Tag mentors
+        mentor_tags = " ".join(MENTOR_IDS)
+        await interaction.response.send_message(
+            f"Roger that! 📣 Bringing in reinforcements...\n\n"
+            f"Hey {mentor_tags}, this one needs your expertise!\n\n"
+            f"<@{self.user_id}> - they'll jump in soon to help you out! 🤝",
+            ephemeral=False
+        )
+        
+        # Disable buttons
+        for item in self.children:
+            item.disabled = True
+        await interaction.message.edit(view=self)
+
 
 # ============================================================================
 # RAG SYSTEM FUNCTIONS
@@ -227,15 +365,13 @@ def add_to_thread_history(thread_id: int, role: str, content: str):
     Args:
         thread_id: Discord thread ID
         role: Either "user" or "assistant"
-        content: Message content
+        content: Message text
         
-    Automatically maintains only last MAX_HISTORY_MESSAGES exchanges
+    Automatically maintains MAX_HISTORY_MESSAGES limit by removing oldest messages
     """
-    # Initialize history list if thread is new
     if thread_id not in conversation_history:
         conversation_history[thread_id] = []
     
-    # Append new message
     conversation_history[thread_id].append({
         "role": role,
         "content": content
@@ -247,7 +383,7 @@ def add_to_thread_history(thread_id: int, role: str, content: str):
 
 def format_history_for_prompt(history: List[Dict[str, str]]) -> str:
     """
-    Convert history list into formatted string for LLM context.
+    Format conversation history into readable text for LLM prompt.
     
     Args:
         history: List of conversation messages
@@ -297,7 +433,6 @@ async def generate_response(
     async with api_semaphore:  # Limit concurrent API calls
         try:
             system_prompt = f"""You're Sage - you help students debug their AI projects. You've been through this curriculum yourself.
-            Dont do the user reinforcement, it looks force ,instead have a flow like natural conversation
 
 CURRICULUM CONTEXT:
 {context}
@@ -421,6 +556,137 @@ def split_long_message(content: str) -> List[str]:
 
 
 # ============================================================================
+# SOLUTION DETECTION
+# ============================================================================
+
+def is_providing_solution(response: str) -> bool:
+    """
+    Determine if bot is providing a solution or asking for clarification.
+    
+    This prevents feedback buttons from appearing when bot is asking
+    clarifying questions and only shows them after actual solutions.
+    
+    Args:
+        response: Bot's response text
+        
+    Returns:
+        True if providing solution (show feedback buttons)
+        False if asking clarifying questions (skip feedback buttons)
+        
+    Detection logic:
+        1. Count question marks - many questions = clarifying
+        2. Check for clarifying phrases ("could you share", "what specifically")
+        3. Check for solution indicators ("here's how", "try this", lecture references)
+        4. Use weighted scoring to decide
+    """
+    response_lower = response.lower()
+    
+    # Count questions in response
+    question_count = response.count('?')
+    
+    # Count sentences (rough approximation)
+    sentence_count = max(
+        len(response.split('.')),
+        len(response.split('\n'))
+    )
+    
+    # If response is mostly questions (50%+ are questions), it's clarifying
+    if sentence_count > 0 and question_count >= sentence_count * 0.5:
+        return False
+    
+    # Explicit clarifying phrases - strong indicators of asking for more info
+    clarifying_phrases = [
+        "could you share",
+        "can you share",
+        "what specifically",
+        "which lecture",
+        "which module", 
+        "which week",
+        "what's blocking",
+        "what part",
+        "are you referring to",
+        "are you using",
+        "did you check",
+        "what's the error",
+        "can you provide",
+        "what do you mean",
+        "could you clarify",
+        "more context",
+        "more details",
+        "more information",
+        "help me understand",
+        "tell me more"
+    ]
+    
+    clarifying_count = sum(1 for phrase in clarifying_phrases if phrase in response_lower)
+    
+    # If 2+ clarifying phrases found, definitely asking questions
+    if clarifying_count >= 2:
+        return False
+    
+    # If 1 clarifying phrase + questions, probably clarifying
+    if clarifying_count >= 1 and question_count >= 2:
+        return False
+    
+    # Solution indicators - signs bot is providing actual help/solution
+    solution_indicators = [
+        "here's how",
+        "here's what",
+        "try this",
+        "try these",
+        "the issue is",
+        "the problem is",
+        "you need to",
+        "you should",
+        "add this",
+        "check line",
+        "in lecture",
+        "lecture",
+        "module",
+        "week",
+        "covered this",
+        "covered in",
+        "missing the",
+        "add it to",
+        "i see the issue",
+        "the solution",
+        "you can fix",
+        "to fix this",
+        "your code",
+        "your workflow"
+    ]
+    
+    solution_count = sum(1 for indicator in solution_indicators if indicator in response_lower)
+    
+    # Strong solution indicators = definitely providing solution
+    if solution_count >= 3:
+        return True
+    
+    # Multiple questions without solutions = clarifying
+    if question_count >= 3 and solution_count == 0:
+        return False
+    
+    # If response has 2+ questions and minimal solution indicators
+    if question_count >= 2 and solution_count < 2:
+        return False
+    
+    # Edge case: very short response with only questions
+    if len(response) < 100 and question_count >= 2:
+        return False
+    
+    # Default behavior: if we have some solution indicators and not too many questions
+    # Show buttons (better to ask for feedback than miss it)
+    if solution_count >= 1 or question_count <= 1:
+        return True
+    
+    # Final fallback: if still unclear, check question ratio
+    if question_count >= 2:
+        return False
+    
+    return True  # Default to showing buttons
+
+
+# ============================================================================
 # DISCORD EVENT HANDLERS
 # ============================================================================
 
@@ -466,7 +732,8 @@ async def on_message(message):
         5. Retrieve relevant context from RAG
         6. Generate response with OpenAI
         7. Send response (split if needed)
-        8. Update conversation history
+        8. Send feedback request with buttons
+        9. Update conversation history
     """
     # Ignore messages from the bot itself (prevents infinite loops)
     if message.author == bot.user:
@@ -531,6 +798,24 @@ async def on_message(message):
             # Update conversation history
             add_to_thread_history(thread_id, "user", query)
             add_to_thread_history(thread_id, "assistant", response)
+            
+            # Only send feedback buttons if bot provided a solution (not just asking clarifying questions)
+            if is_providing_solution(response):
+                # Wait a moment before sending feedback request (feels more natural)
+                await asyncio.sleep(1.5)
+                
+                # Send feedback request with buttons
+                feedback_view = FeedbackView(user_id=message.author.id, thread_id=thread_id)
+                feedback_message = await message.channel.send(
+                    "🎯 Does this clear things up?",
+                    view=feedback_view
+                )
+                
+                # Track this feedback request
+                pending_feedback[feedback_message.id] = {
+                    "thread_id": thread_id,
+                    "user_id": message.author.id
+                }
             
         except Exception as e:
             print(f"Error processing message: {e}")
