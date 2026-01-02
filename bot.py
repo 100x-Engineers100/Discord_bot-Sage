@@ -28,6 +28,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 
+from supabase import create_client, Client
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -40,6 +42,10 @@ DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 # OpenAI Configuration
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 OPENAI_MODEL = "gpt-4.1-mini"
+
+# Supabase Configuration
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
 # RAG Configuration
 CHUNK_SIZE = 1500
@@ -74,6 +80,7 @@ clarification_tracker: Dict[int, int] = {}
 
 vector_store = None
 openai_client = None
+supabase_client: Optional[Client] = None
 api_semaphore = asyncio.Semaphore(3)
 
 # ============================================================================
@@ -105,16 +112,19 @@ class FeedbackView(View):
                 ephemeral=True
             )
             return
-        
+
+        # Log analytics event
+        await log_event('got_it', self.thread_id, interaction.user.id, interaction.message.id)
+
         await interaction.response.send_message(
             "Awesome! 🚀 Happy learning!",
             ephemeral=False
         )
-        
+
         for item in self.children:
             item.disabled = True
         await interaction.message.edit(view=self)
-        
+
         if interaction.message.id in pending_feedback:
             del pending_feedback[interaction.message.id]
     
@@ -126,18 +136,21 @@ class FeedbackView(View):
                 ephemeral=True
             )
             return
-        
+
+        # Log analytics event
+        await log_event('need_help', self.thread_id, interaction.user.id, interaction.message.id)
+
         for item in self.children:
             item.disabled = True
         await interaction.message.edit(view=self)
-        
+
         follow_up_view = FollowUpView(self.user_id, self.thread_id)
         await interaction.response.send_message(
             "No worries, let's figure this out! What would you prefer?",
             view=follow_up_view,
             ephemeral=False
         )
-        
+
         if interaction.message.id in pending_feedback:
             del pending_feedback[interaction.message.id]
 
@@ -157,12 +170,15 @@ class FollowUpView(View):
                 ephemeral=True
             )
             return
-        
+
+        # Log analytics event
+        await log_event('continue_here', self.thread_id, interaction.user.id, interaction.message.id)
+
         await interaction.response.send_message(
             "Got it! What's still unclear or what else can I help with?",
             ephemeral=False
         )
-        
+
         for item in self.children:
             item.disabled = True
         await interaction.message.edit(view=self)
@@ -175,7 +191,10 @@ class FollowUpView(View):
                 ephemeral=True
             )
             return
-        
+
+        # Log analytics event
+        await log_event('tag_crew', self.thread_id, interaction.user.id, interaction.message.id)
+
         mentor_tags = " ".join(MENTOR_IDS)
         await interaction.response.send_message(
             f"Roger that! 📣 Bringing in reinforcements...\n\n"
@@ -183,7 +202,7 @@ class FollowUpView(View):
             f"<@{self.user_id}> - they'll jump in soon to help you out! 🤝",
             ephemeral=False
         )
-        
+
         for item in self.children:
             item.disabled = True
         await interaction.message.edit(view=self)
@@ -545,23 +564,49 @@ def split_long_message(content: str) -> List[str]:
     return chunks
 
 # ============================================================================
+# ANALYTICS LOGGING
+# ============================================================================
+
+async def log_event(event_type: str, thread_id: int, user_id: int, message_id: Optional[int] = None):
+    """Log analytics event to Supabase."""
+    if not supabase_client:
+        return  # Skip if Supabase not configured
+
+    try:
+        supabase_client.table('analytics_events').insert({
+            'event_type': event_type,
+            'thread_id': thread_id,
+            'user_id': user_id,
+            'message_id': message_id
+        }).execute()
+    except Exception as e:
+        print(f"Analytics logging error: {e}")
+
+# ============================================================================
 # DISCORD EVENT HANDLERS
 # ============================================================================
 
 @bot.event
 async def on_ready():
     """Initialize bot components."""
-    global openai_client
-    
+    global openai_client, supabase_client
+
     print(f'Bot logged in as {bot.user.name} (ID: {bot.user.id})')
     print('----------------------------------------')
-    
+
     openai_client = OpenAI(api_key=OPENAI_API_KEY)
     print('✓ OpenAI client initialized')
-    
+
+    # Initialize Supabase client
+    if SUPABASE_URL and SUPABASE_KEY:
+        supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print('✓ Supabase analytics client initialized')
+    else:
+        print('⚠ Supabase credentials not found - analytics disabled')
+
     # Start vector store initialization in background (non-blocking)
     bot.loop.create_task(initialize_vector_store())
-    
+
     print('✓ Vector store initialization started in background')
     print('----------------------------------------')
     print('Bot is ready! Clarification loop prevention: ACTIVE')
@@ -638,7 +683,10 @@ async def on_message(message):
             # Update history
             add_to_thread_history(thread_id, "user", query)
             add_to_thread_history(thread_id, "assistant", response)
-            
+
+            # Log analytics event
+            await log_event('query', thread_id, message.author.id, first_message.id)
+
             # Show feedback buttons only if providing solution
             if is_providing_solution(response):
                 await asyncio.sleep(1.5)
