@@ -13,6 +13,7 @@ IMPROVEMENTS IN V3:
 import os
 import re
 import asyncio
+import aiohttp
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
@@ -66,6 +67,14 @@ DATA_FILE_PATH = os.path.join(BASE_DIR, "Data_Doc_main.txt")
 MENTOR_IDS = [
     "<@1389934019030028380>",  # Mekashi
     "<@1352199617877381150>"   # Omkar
+]
+
+# Supported Text File Extensions
+TEXT_FILE_EXTENSIONS = [
+    '.txt', '.json', '.py', '.js', '.ts', '.jsx', '.tsx',
+    '.md', '.csv', '.log', '.yaml', '.yml', '.env',
+    '.config', '.ini', '.toml', '.xml', '.html', '.css',
+    '.sh', '.bash', '.sql', '.java', '.cpp', '.c', '.go'
 ]
 
 # ============================================================================
@@ -338,11 +347,12 @@ def has_student_provided_clarification(history: List[Dict[str, str]]) -> bool:
 # ============================================================================
 
 async def generate_response(
-    query: str, 
-    context: str, 
+    query: str,
+    context: str,
     history: List[Dict[str, str]],
     thread_id: int,  # NEW: Need thread_id for tracking
-    image_url: Optional[str] = None
+    image_url: Optional[str] = None,
+    file_context: Optional[str] = None
 ) -> str:
     """
     Generate response with clarification loop prevention.
@@ -365,7 +375,7 @@ async def generate_response(
             if response_mode == "ANSWER":
                 system_prompt = f"""You're Sage - technical mentor for 100xEngineers AI Cohort 6.
 
-CURRICULUM CONTEXT:
+{f"UPLOADED FILE CONTEXT:\\n{file_context}\\n\\n" if file_context else ""}CURRICULUM CONTEXT:
 {context}
 
 RECENT CONVERSATION:
@@ -386,7 +396,7 @@ Student's question: {query}"""
                 # NORMAL MODE
                 system_prompt = f"""You're Sage - technical mentor for 100xEngineers AI Cohort 6.
 
-CURRICULUM CONTEXT:
+{f"UPLOADED FILE CONTEXT:\\n{file_context}\\n\\n" if file_context else ""}CURRICULUM CONTEXT:
 {context}
 
 RECENT CONVERSATION:
@@ -530,6 +540,40 @@ def is_providing_solution(response: str) -> bool:
     return solution_count >= 1 or question_count <= 1
 
 # ============================================================================
+# FILE ATTACHMENT HANDLING
+# ============================================================================
+
+async def handle_text_file_attachment(attachment: discord.Attachment) -> Optional[str]:
+    """
+    Download and process text file. Auto-truncates to 20KB if larger.
+
+    Returns: Formatted file content or None if unsupported/error
+    """
+    # Check extension
+    if not any(attachment.filename.lower().endswith(ext) for ext in TEXT_FILE_EXTENSIONS):
+        return None
+
+    # Download file
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(attachment.url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                content = await resp.text(encoding='utf-8', errors='ignore')
+
+        if len(content.strip()) == 0:
+            return None
+
+        # Truncate if >20KB
+        max_chars = 20480
+        if len(content) > max_chars:
+            content = content[:max_chars] + "\n\n[... file truncated, showing first 20KB only]"
+
+        return f"UPLOADED FILE: {attachment.filename}\n\n{content}"
+
+    except Exception as e:
+        print(f"File download error: {e}")
+        return None
+
+# ============================================================================
 # MESSAGE HANDLING (keeping your implementation)
 # ============================================================================
 
@@ -659,18 +703,25 @@ async def on_message(message):
     async with message.channel.typing():
         try:
             image_url = None
+            file_context = None
             if message.attachments:
                 for attachment in message.attachments:
-                    if any(attachment.filename.lower().endswith(ext) 
+                    # Check images first (preserve existing behavior)
+                    if any(attachment.filename.lower().endswith(ext)
                            for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
                         image_url = attachment.url
                         break
-            
+
+                    # Check text files
+                    file_context = await handle_text_file_attachment(attachment)
+                    if file_context:
+                        break
+
             context = retrieve_relevant_context(query, k=3)
             history = get_thread_history(thread_id)
-            
+
             # PASS thread_id to track clarification state
-            response = await generate_response(query, context, history, thread_id, image_url)
+            response = await generate_response(query, context, history, thread_id, image_url, file_context)
             
             message_chunks = split_long_message(response)
             
