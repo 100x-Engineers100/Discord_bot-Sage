@@ -206,10 +206,6 @@ discord-support-bot/
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📄 License
-
-[Add your license here]
-
 ## 👤 Author
 
 Built for 100xEngineers AI Cohort 6
