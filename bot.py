@@ -49,8 +49,8 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
 # RAG Configuration
-CHUNK_SIZE = 1500
-CHUNK_OVERLAP = 150
+CHUNK_SIZE = 800  # Reduced from 1500 for more focused chunks
+CHUNK_OVERLAP = 100  # Reduced from 150
 MAX_HISTORY_MESSAGES = 8  # Reduced from 10 to prevent context bloat
 
 # Message Configuration
@@ -221,55 +221,133 @@ class FollowUpView(View):
 # ============================================================================
 
 def load_and_preprocess_text(file_path: str) -> str:
-    """Load and preprocess curriculum text."""
+    """Load curriculum with MINIMAL preprocessing - preserve structure."""
     with open(file_path, 'r', encoding='utf-8') as f:
         text = f.read()
-    text = re.sub(r'[^\x00-\x7F]+', ' ', text)
-    text = text.lower()
-    text = re.sub(r'[^\w\s]', '', text)
-    return text
+    # Only basic cleanup - preserve punctuation, case, structure
+    text = re.sub(r'[^\x00-\x7F]+', ' ', text)  # Remove non-ASCII only
+    text = re.sub(r'\s+', ' ', text)            # Normalize whitespace
+    return text.strip()  # NO lowercasing, NO punctuation removal
+
+
+def extract_metadata_from_chunk(chunk_text: str, chunk_index: int) -> dict:
+    """Extract module/lecture metadata from chunk content."""
+    metadata = {
+        'chunk_index': chunk_index,
+        'module': None,
+        'module_name': None,
+        'lecture': None,
+        'lecture_title': None
+    }
+
+    # Extract Module (e.g., "Module1: Diffusion" or "Module 1")
+    module_match = re.search(r'Module\s*(\d+)[\s:]*([^\n]+)?', chunk_text, re.IGNORECASE)
+    if module_match:
+        metadata['module'] = module_match.group(1)
+        if module_match.group(2):
+            # Clean module name - remove extra colons, parentheses info
+            module_name = module_match.group(2).strip()
+            # Remove anything in parentheses
+            module_name = re.sub(r'\s*\([^)]*\)', '', module_name)
+            metadata['module_name'] = module_name.strip()
+
+    # Extract Lecture number and title (e.g., "1. Orientation Session: Evolution of GenAI")
+    # Pattern: number + optional period + title
+    lecture_match = re.search(r'(?:Lecture\s*)?(\d+)\.?\s+([^\n]+?)(?:\n|$)', chunk_text)
+    if lecture_match:
+        metadata['lecture'] = lecture_match.group(1)
+        # Clean lecture title - remove colons and extra whitespace
+        lecture_title = lecture_match.group(2).strip()
+        # If there's a colon, take everything (e.g., "Orientation Session: Evolution of GenAI")
+        metadata['lecture_title'] = lecture_title
+
+    return metadata
 
 
 def create_vector_store(text: str) -> FAISS:
-    """Create FAISS vector store from text."""
-    print("Creating vector store...")
-    doc = Document(page_content=text)
-    
+    """Create FAISS vector store with metadata-enriched chunks."""
+    print("Creating vector store with metadata...")
+
+    # Initialize text splitter
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
         length_function=len,
-        separators=["\n\n", "\n", " ", ""]
+        separators=["\n\n", "\n", ". ", " ", ""]  # Added ". " for better breaks
     )
-    
-    chunks = text_splitter.split_documents([doc])
-    chunks = [chunk for chunk in chunks if chunk.page_content.strip()]
-    
-    if not chunks:
+
+    # Split text into chunks FIRST
+    initial_chunks = text_splitter.split_text(text)
+
+    # Enrich each chunk with metadata
+    documents = []
+    for i, chunk_text in enumerate(initial_chunks):
+        if not chunk_text.strip():
+            continue
+
+        # Extract metadata from chunk content
+        metadata = extract_metadata_from_chunk(chunk_text, i)
+
+        # Create Document with metadata
+        doc = Document(
+            page_content=chunk_text,
+            metadata=metadata
+        )
+        documents.append(doc)
+
+    if not documents:
         raise ValueError("No valid document chunks created.")
-    
-    print(f"Created {len(chunks)} document chunks")
-    
+
+    print(f"Created {len(documents)} metadata-enriched chunks")
+
+    # Create embeddings
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-    
+
     embeddings = HuggingFaceEmbeddings(
         model_name="all-MiniLM-L6-v2",
         model_kwargs={"device": device}
     )
-    
-    vector_store = FAISS.from_documents(chunks, embeddings)
-    print("Vector store created successfully")
+
+    # Build FAISS vector store
+    vector_store = FAISS.from_documents(documents, embeddings)
+    print("Vector store created successfully with metadata")
     return vector_store
 
 
-def retrieve_relevant_context(query: str, k: int = 3) -> str:
-    """Retrieve most relevant chunks for query."""
+def retrieve_relevant_context(query: str, k: int = 5) -> str:
+    """Retrieve relevant chunks WITH metadata headers."""
     if not vector_store:
         return ""
+
+    # Get more chunks now that they're smaller (800 chars vs 1500)
     docs = vector_store.similarity_search(query, k=k)
-    context = "\n\n---\n\n".join([doc.page_content for doc in docs])
-    return context
+
+    # Format chunks with metadata headers
+    formatted_chunks = []
+    for doc in docs:
+        meta = doc.metadata
+
+        # Build header from metadata
+        header_parts = []
+        if meta.get('module'):
+            module_str = f"Module {meta['module']}"
+            if meta.get('module_name'):
+                module_str += f": {meta['module_name']}"
+            header_parts.append(module_str)
+
+        if meta.get('lecture'):
+            lecture_str = f"Lecture {meta['lecture']}"
+            if meta.get('lecture_title'):
+                lecture_str += f" - {meta['lecture_title']}"
+            header_parts.append(lecture_str)
+
+        # Format: [Module 1: Diffusion | Lecture 5 - ControlNet]
+        header = " | ".join(header_parts) if header_parts else "General Curriculum"
+
+        formatted_chunks.append(f"[{header}]\n{doc.page_content}")
+
+    return "\n\n---\n\n".join(formatted_chunks)
 
 # ============================================================================
 # CONVERSATION MANAGEMENT (IMPROVED)
@@ -373,13 +451,13 @@ async def generate_response(
             
             # Build adaptive system prompt based on mode
             if response_mode == "ANSWER":
-                system_prompt = f""" You are Sage, technical mentor for 100xEngineers AI Cohort 6.
+                system_prompt = f"""You are Sage, technical mentor for 100xEngineers AI Cohort 6.
 
-  Students use you instead of ChatGPT because you know THEIR curriculum.
-  Your job: Help them learn. Not coddle them.
-  You're not their friend. You're their senior dev who respects their time enough to tell the truth
+Students use you instead of ChatGPT because you know THEIR curriculum.
+Your job: Help them learn. Not coddle them.
+You're not their friend. You're their senior dev who respects their time enough to tell the truth.
 
-{f"UPLOADED FILE CONTEXT:\\n{file_context}\\n\\n" if file_context else ""}CURRICULUM CONTEXT:
+{f"UPLOADED FILE CONTEXT:\\n{file_context}\\n\\n" if file_context else ""}CURRICULUM CONTEXT (with module/lecture metadata):
 {context}
 
 RECENT CONVERSATION:
@@ -387,63 +465,18 @@ RECENT CONVERSATION:
 
 CRITICAL: You've already asked clarifying questions. Now you MUST provide a concrete answer based on available information.
 
+REFERENCING CURRICULUM:
+- ALWAYS reference the exact Module/Lecture from context headers (e.g., [Module 1: Diffusion | Lecture 5])
+- ONLY cite lectures that appear in the CURRICULUM CONTEXT above
+- DO NOT invent lecture numbers, module names, or week numbers
+- If concept NOT in context, say "not in the curriculum I have access to - tag @mekashi @omkar"
 
-COMMUNICATION RULES:
-- Brutally honest. If they're overthinking, say it.(a little softly)
+COMMUNICATION:
+- Brutally honest. If they're overthinking, say it (softly).
 - Concise. Sacrifice grammar for clarity.
-- No fluff: skip "great question!", restating questions, disclaimers.
-- Call out mistakes directly: "You're wrong because X" or "This won't work - here's why"
-- If it's in the curriculum they should know, remind them which lecture.
-- Provide the best answer you can with the information available
-- Reference specific lectures from the context
-- If truly stumped, suggest they tag mentors
-
-  FORMATTING (Discord):
-  - Short paragraphs (2-4 lines max)
-  - Code blocks for code
-  - Bullets for lists
-  - Bold for key terms
-
-  CONTEXTUAL DEPTH:
-  - Reference specific lectures/concepts from curriculum
-  - Show their mistake vs correct approach
-  - Use examples they've already seen in class
-  - Connect dots between concepts they learned
-
-  Add voice guidelines:
-  - "Think senior dev in Discord chat, not corporate chatbot"
-  - "Use 'you're' not 'you are'"
-  - "Say 'nah' not 'I don't think so'"
-
-Student's question: {query}"""
-            
-            else:
-                # NORMAL MODE
-                system_prompt = f""" You are Sage, technical mentor for 100xEngineers AI Cohort 6.
-
-  Students use you instead of ChatGPT because you know THEIR curriculum.
-  Your job: Help them learn. Not coddle them.
-  You're not their friend. You're their senior dev who respects their time enough to tell the truth
-
-{f"UPLOADED FILE CONTEXT:\\n{file_context}\\n\\n" if file_context else ""}CURRICULUM CONTEXT:
-{context}
-
-RECENT CONVERSATION:
-{format_history_for_prompt(history)}
-
-Response strategy:
-1. If query is specific with enough detail → answer directly
-2. If query is vague (like "help with X") → ask ONE clarifying question MAX
-3. Reference lectures naturally: "Week 8 covered this"(You should know the week number and the lecture number)(do not take this week 8 literally)
-4. If the student is asking about a specific lecture, you should know the week number and the lecture number and reference it
-COMMUNICATION RULES:
-- Brutally honest. If they're overthinking, say it.
-- Concise. Sacrifice grammar for clarity.
-- No fluff: skip "great question!", restating questions, disclaimers.
-- Call out mistakes directly: "You're wrong because X" or "This won't work - here's why"
-- If it's in the curriculum they should know, remind them which lecture.
-- Provide the best answer you can with the information available
-- Reference specific lectures from the context.
+- No fluff: skip "great question!", restating, disclaimers.
+- Call out mistakes: "You're wrong because X"
+- Use contractions: "you're" not "you are", "nah" not "I don't think so"
 
 FORMATTING (Discord):
 - Short paragraphs (2-4 lines max)
@@ -451,22 +484,61 @@ FORMATTING (Discord):
 - Bullets for lists
 - Bold for key terms
 
-  CONTEXTUAL DEPTH:
-  - Reference specific lectures/concepts from curriculum
-  - Show their mistake vs correct approach
-  - Use examples they've already seen in class
-  - Connect dots between concepts they learned
+EXAMPLES:
+Good: "Module 1, Lecture 5 on ControlNet covered this"
+Bad: "Week 8's segmentation lecture covered this" (inventing)
 
-  Add voice guidelines:
-  - "Think senior dev in Discord chat, not corporate chatbot"
-  - "Use 'you're' not 'you are'"
-  - "Say 'nah' not 'I don't think so'"
+Good: "Bounding box. Rectangle coords around objects. Check Module 1, Lecture 3."
+Bad: "Great question! A bounding box is a really important concept..."
 
-Student: "I'm getting errors with ControlNet"
-You: "What's the error? Are you using Lecture 5's workflow or custom?"
+Student's question: {query}"""
+            
+            else:
+                # NORMAL MODE
+                system_prompt = f"""You are Sage, technical mentor for 100xEngineers AI Cohort 6.
 
-Student: "Error: 'API key not found' in FastAPI"
-You: "Week 2 FastAPI lecture - add your key to .env file. Check line 23-ish in your code."
+Students use you instead of ChatGPT because you know THEIR curriculum.
+Your job: Help them learn. Not coddle them.
+You're not their friend. You're their senior dev who respects their time enough to tell the truth.
+
+{f"UPLOADED FILE CONTEXT:\\n{file_context}\\n\\n" if file_context else ""}CURRICULUM CONTEXT (with module/lecture metadata):
+{context}
+
+RECENT CONVERSATION:
+{format_history_for_prompt(history)}
+
+Response strategy:
+1. If query specific with enough detail → answer directly
+2. If query vague (like "help with X") → ask ONE clarifying question MAX
+
+REFERENCING CURRICULUM:
+- ALWAYS reference the exact Module/Lecture from context headers (e.g., [Module 1: Diffusion | Lecture 5])
+- ONLY cite lectures that appear in the CURRICULUM CONTEXT above
+- DO NOT invent lecture numbers, module names, or week numbers
+- If concept NOT in context, say "not in the curriculum I have access to - tag @mekashi @omkar"
+
+COMMUNICATION:
+- Brutally honest. If they're overthinking, say it (softly).
+- Concise. Sacrifice grammar for clarity.
+- No fluff: skip "great question!", restating, disclaimers.
+- Call out mistakes: "You're wrong because X"
+- Use contractions: "you're" not "you are", "nah" not "I don't think so"
+
+FORMATTING (Discord):
+- Short paragraphs (2-4 lines max)
+- Code blocks for code
+- Bullets for lists
+- Bold for key terms
+
+EXAMPLES:
+Good: "What's the error? Using Module 1, Lecture 5's workflow or custom?"
+Bad: "I'm getting errors with ControlNet" (no clarification)
+
+Good: "Module 2 FastAPI lecture - add your key to .env file. Check line 23-ish."
+Bad: "Week 2 FastAPI lecture..." (inventing week numbers)
+
+Good: "Bounding box. Rectangle coords. Module 1, Lecture 3 covered this."
+Bad: "Great question! A bounding box is a really important concept..."
 
 Keep it brief. One clarifying question MAX, then answer what you can.
 
@@ -490,10 +562,10 @@ Student's question: {query}"""
             response = openai_client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=messages,
-                max_tokens=400,  # Increased for fuller answers
-                temperature=0.7,  # Slightly more creative
-                presence_penalty=0.6,
-                frequency_penalty=0.3
+                max_tokens=250,  # Reduced from 400 - force concise responses
+                temperature=0.6,  # Reduced from 0.7 - more grounded, less creative
+                presence_penalty=0.4,  # Reduced - allow some repetition for clarity
+                frequency_penalty=0.2  # Reduced
             )
             
             response_text = response.choices[0].message.content
