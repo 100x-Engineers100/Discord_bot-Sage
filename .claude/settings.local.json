@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npx next build:*)",
+      "Bash(timeout 10 python:*)"
     ]
   }
 }

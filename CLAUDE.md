@@ -1,4 +1,47 @@
-\# Sage Bot - Project Memory
+\# Dual Bot System - Project Memory
+
+\## IMPORTANT: ARCHITECTURE CHANGE (2026-02-02)
+
+\*\*MAJOR UPDATE\*\*: Project migrated from single Sage bot to **dual-bot architecture**.
+
+\### What Changed
+
+\*\*Before\*\*:
+\- Single Sage bot handling all queries
+\- Deployed on 1 Render service ($25/mo)
+
+\*\*After\*\*:
+\- \*\*@Sage\*\*: Technical curriculum support (RAG + feedback + analytics)
+\- \*\*@Scout\*\*: FAQ/program support (RAG + urgency detection)
+\- Both run in SAME Python process on SAME Render service ($25/mo)
+
+\### Why This Change
+
+1\. **Cost efficiency**: Scout was going to be a 2nd service ($25/mo). Now it's free (shared infrastructure).
+2\. **User clarity**: Students explicitly choose which bot to ask (@Sage for code, @Scout for LMS).
+3\. **Zero classification errors**: No AI guessing which bot to use - user decides.
+
+\### Key Architecture Details
+
+\- **File**: `bot.py` orchestrates both bots using `asyncio.TaskGroup`
+\- **Sage RAG**: Uses `curriculum_rag.py` (Data\_Doc\_main.txt)
+\- **Scout RAG**: Uses `scout_rag.py` (FAQ\_Doc.txt)
+\- **Shared**: OpenAI client, Supabase (Sage analytics only), message utilities
+\- **Separate**: Conversation histories, feedback state, response logic
+
+\### Deployment Files
+
+\- `bot.py`: Main dual-bot orchestrator
+\- `scout_rag.py`: Scout's FAQ RAG system
+\- `setup_scout_embeddings.py`: Builds Scout's FAISS index
+\- `test_dual_bots.py`: Pre-deployment validation
+\- `DUAL_BOT_DEPLOYMENT.md`: Full deployment guide
+
+\---
+
+\# Original Sage Bot Documentation (Still Applicable)
+
+\## Sage Bot - Technical Support Component
 
 
 

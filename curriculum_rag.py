@@ -324,7 +324,8 @@ class CurriculumRAG:
         query: str,
         top_k: int = None,
         module: Optional[int] = None,
-        mentor: Optional[str] = None
+        mentor: Optional[str] = None,
+        query_embedding: Optional[np.ndarray] = None
     ) -> List[Dict[str, Any]]:
         """
         Search curriculum for relevant lectures
@@ -347,12 +348,13 @@ class CurriculumRAG:
 
         top_k = top_k or config.TOP_K_RESULTS
 
-        # Embed query
-        response = self.client.embeddings.create(
-            input=[query],
-            model=config.EMBEDDING_MODEL
-        )
-        query_embedding = np.array([response.data[0].embedding], dtype=np.float32)
+        # Embed query (skip if pre-computed for cross-bot routing)
+        if query_embedding is None:
+            response = self.client.embeddings.create(
+                input=[query],
+                model=config.EMBEDDING_MODEL
+            )
+            query_embedding = np.array([response.data[0].embedding], dtype=np.float32)
 
         # Search more results if filtering (to compensate for post-filter reduction)
         search_k = top_k * 3 if (module or mentor) else top_k

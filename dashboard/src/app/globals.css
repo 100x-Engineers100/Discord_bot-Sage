@@ -64,5 +64,12 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-primary), ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .font-code {
+    font-family: var(--font-mono), ui-monospace, "SFMono-Regular", Consolas, monospace;
   }
 }

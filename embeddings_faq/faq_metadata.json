@@ -1,0 +1,185 @@
+[
+  {
+    "question": "Where to find the LMS link ?",
+    "answer": "Hey! You will find the LMS link on your mail or access it from here- https://learn.100xbuilders.com/",
+    "category": "lms",
+    "is_urgent": false,
+    "links": [
+      "https://learn.100xbuilders.com/"
+    ],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "Where to find the Launchpad link ?",
+    "answer": "Hey! The launchpad link has been shared over your mail and whatsapp.You can also find it on discords #announcements channel.",
+    "category": "launchpad",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "Where to find the discovery call booking link ?",
+    "answer": "Hey! The link for booking discovery call will be shared on your mail and you can also find it on discord’s #announcements channel.",
+    "category": "launchpad",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "Where to find the Ikigai chart form ?",
+    "answer": "Hey! You will find the Ikigai chart link inside the launchpad form link. The launchpad link has been shared over your mail.You can also find it on discord’s #announcements channel.",
+    "category": "launchpad",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "Where can I find the summaries of the previous sessions ?",
+    "answer": "Hey! The summaries are uploaded on your Learning Platform. Please follow the following steps-\n Step 1- Go to your Learning Platform dashboard.\n Step 2- Select the specific module & Go to ‘Modules’\n Step 3- Navigate to the week you are looking for\nYou can also find the summaries uploaded on our google drive. The link for the drive is posted on discord’s #session-resources-pdf channel.",
+    "category": "lms",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "Where can I fill the form to choose my tracks ?",
+    "answer": "Hey! The launchpad link has been shared over your mail and whatsapp.You can also find it on discords #announcements channel.",
+    "category": "launchpad",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "From where to join the lectures ?",
+    "answer": "Hey! Please follow these steps-\n Step 1- Go to your Learning Platform dashboard\n Step 2- On the first page in the right corner you will see “today’s classes”.\n Step 3- Click on ‘join now’ to join the live session",
+    "category": "lms",
+    "is_urgent": true,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "I have already filled in my launchpad form but I want to change my tracks now, can I do that?",
+    "answer": "Hey! Change of tracks post launchpad submission is not ideal, that is why it is necessary to fill it carefully beforehand. Though in certain cases with a valid reason it can be done by sharing an email to cohort@100xengineers.com",
+    "category": "launchpad",
+    "is_urgent": false,
+    "links": [],
+    "emails": [
+      "cohort@100xengineers.com"
+    ],
+    "type": "faq"
+  },
+  {
+    "question": "How to edit my launchpad form ?",
+    "answer": "Hey! Please mail on cohort@100xengineers.com with reasons to edit & our program team will reach out to you and make the necessary changes that you want to make in your launchpad for you.[e][f]",
+    "category": "launchpad",
+    "is_urgent": false,
+    "links": [],
+    "emails": [
+      "cohort@100xengineers.com"
+    ],
+    "type": "faq"
+  },
+  {
+    "question": "I want to edit my mail id, how do I do it ?",
+    "answer": "Please share an e-mail at cohort@100xengineers.com and our team will update your mail Id.",
+    "category": "general",
+    "is_urgent": false,
+    "links": [],
+    "emails": [
+      "cohort@100xengineers.com"
+    ],
+    "type": "faq"
+  },
+  {
+    "question": "I am from a no code background but want to choose code track, can I do that?",
+    "answer": "Absolutely. You just have to go over a few prerequisites in order to understand how to code. Our team will share a few practice sets for you to go over the weekends and learn how to code!",
+    "category": "launchpad",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "Where to find the prerequisites Python study to do for beginners who chose code track ?",
+    "answer": "Hey the prerequisites for python has been share on discord’s #announcements channel. You can also access it through here: python prerequisites",
+    "category": "launchpad",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "Can I get calendar invites for the live sessions ?",
+    "answer": "Hey, your calendars have already been blocked. If not please contact our program team on discord’s #support channel and they will help you with it.",
+    "category": "sessions",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "I can't see the recording of the class which took place today. Where can I find it?",
+    "answer": "Hey! Please follow these steps: \n Step 1- Go to your Learning Platform dashboard\n Step 2- Click on the Module of which recording you are looking for- \n Step 3- Click on ‘Sessions’\n Step 4- Select the date of which session you are looking for.",
+    "category": "lms",
+    "is_urgent": true,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "I wanted to know the timings for the sessions shown in the calendar. if you can point me towards it'll help me in blocking my calendar for those times for the next 6 months?",
+    "answer": "Hey! Here’s a breakdown of how your sessions are scheduled-\nOn weekends i.e.- On Fridays and Saturdays we will host Live Sessions at 6:00 PM to 8:00 PM IST.\nOn Weekdays i.e.- Tuesdays & Thursdays we will host Office Hours at 8:30 PM to 9:30 PM IST.[g][h]\nThis is how usually the sessions are conducted, but if there any changes in the timings you will be notified about it on the discord #announcements channel.",
+    "category": "sessions",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "Best Practices while using Jarvis Labs?",
+    "answer": "Hey! \n1. While using Jarvis Labs you will be asked to make multiple instances, so after practicing please make sure to pause the instance before logging off as the credits will keep depleting from your account if you don't. Use your credits wisely and carefully in order to make the most of it.\n2. Keep an eye on your usage report. Jarvis shows GPU-hours and credits spent.\n3. Keep a small log (CSV/Notion doc) of what you ran, which instance type, and outcomes. Helps when scaling up or debugging.",
+    "category": "jarvis",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "Why does the Jarvislabs keep crashing?",
+    "answer": "Hey! It is probably because multiple accounts are trying to hop on the server at the same time. Please wait for a while, clear all the temporary cache and hop back in. \n[a]Should have given LMS Navigation video link here.\n[b]Done\n[c]I meant the navigation video (screen recording)\n[d]Oh sorry, added\n[e]Ask them to mail with reasons & the team will help them in making the necessary changes.\n[f]Done\n[g]Mention clearly that this is the normal case but if there are any chances for a few lectures/session we will inform in advance\n[h]Done\n[i]Mention clearly here when will we give access & the log in date will start\n[j]Add questions of best practises like pausing instance and other general issues they face",
+    "category": "lms",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "faq"
+  },
+  {
+    "question": "What is covered in Module 1: DIFFUSION?",
+    "answer": "Module 1: DIFFUSION\n\nLecture 1: Orientation — Tags: Introduction to GenAI evolution, Key milestones, Open-source research, Diffusion models overview, Playground AI, Generative tasks, 100x Curriculum introduction, Program structure\n\nLecture 2: History of GenAI, Tensor Art — Tags: GenAI evolution, Historical milestones, AI development, Open-source models, Effective research techniques, Tensor AI platform, Diffusion models, Generative AI fundamentals, Hands-on usage\n\nLecture 3: How Diffusion Works — Tags: Diffusion models overview, Diffusion fundamentals, Forward diffusion, Reverse diffusion, Model mechanics, Technical foundations, Why diffusion matters, Core concepts\n\nLecture 4: Introduction to SDXL & ComfyUI — Tags: Stable Diffusion XL, SDXL architecture, ComfyUI interface, Node-based workflows, Visual programming, Workflow building, Image generation pipeline\n\nLecture 5: ControlNet and IP Adapters — Tags: ControlNet theory, Pose control, Depth maps, Canny edges, IP-Adapter, Style transfer, Conditioning images, Precise image control, Advanced guidance\n\nLecture 6: Advanced Image Workflow ComfyUI, Intro to Flux Models — Tags: Advanced workflows, ComfyUI mastery, Complex pipelines, FLUX introduction, Next-generation models, Image workflow optimization\n\nLecture 7: Flux Tools and Flux Models, Qwen Image Model — Tags: FLUX tools, FLUX architecture, Model comparison, Qwen integration, Image generation, Advanced models, Multi-model workflows\n\nLecture 8: Qwen Image Model — Tags: Qwen model deep-dive, Chinese AI models, Image generation, Model capabilities, Qwen workflows, Advanced image generation\n\nLecture 9: Flux LoRA Training — Tags: LoRA training, FLUX fine-tuning, Custom training, Model customization, Training workflows, Hyperparameter tuning, Transfer learning\n\nLecture 10: Wan Video Model — Tags: Wan model, Text-to-video, Video generation, Video diffusion, Dynamic content creation, Video synthesis\n\nLecture 11: Video Inpainting, Outpainting and Video ControlNets — Tags: Video inpainting, Video outpainting, Video ControlNets, Video editing, Video manipulation, Advanced video tools, Temporal consistency\n\nLecture 12: Infinite Talk, HuMo Model [Video plus Audio] — Tags: Infinite Talk, HuMo model, Video and audio generation, Multimodal models, Audio-visual synthesis, Character animation\n\nLecture 13: Wan Animate and Advanced Video Workflows — Tags: Wan Animate, Advanced video workflows, Video animation, Complex video pipelines, Professional video creation, Video composition\n\nLecture 14: Deploying Model to Replicate - Closing — Tags: Model deployment, Replicate platform, Production deployment, API creation, Serverless deployment, Model hosting, ComfyUI to production, Module closure",
+    "category": "curriculum",
+    "module": 1,
+    "module_name": "DIFFUSION",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "curriculum_index"
+  },
+  {
+    "question": "What is covered in Module 3: AI AGENTS (CODE & NO-CODE TRACK)?",
+    "answer": "Module 3: AI AGENTS (CODE & NO-CODE TRACK)\n\nLecture 1: Introduction to AI Agents — Tags: AI agents fundamentals, What are AI agents, LLM vs Agentic apps, Design patterns, Best practices, Core principles, Agent Levels framework, LLM to agents transition, Agentic workflows\n\nLecture 2: Building Your First AI Agent — Tags: First agent build, Hands-on implementation, Agent components, Three-level learning approach, Basic agent development, Practical coding, Agent construction, Implementation patterns\n\nLecture 3: Understanding Multi-Agent Systems — Tags: Multi-agent architectures, Agent communication protocols, Communication strategies, System coordination, Multi-agent fundamentals, Distributed agents, Agent collaboration\n\nLecture 4: Multi Agents — Tags: Agent coordination, Collaboration strategies, When to use multi-agent systems, Multi-agent patterns, Agent orchestration, System design, Use case analysis\n\nLecture 5: Hands-on Building AI Agents with SDKs — Tags: OpenAI Agents SDK, Agents Kit, Claude Agents SDK, Google ADK, Agent-to-Agent (A2A), MCP integration, Agent memory patterns, Framework implementation, SDK mastery\n\nLecture 6: Applying Guardrails, Monitoring and Evaluation — Tags: Guardrails implementation, Safe agent behavior, Agent monitoring, Performance monitoring, Evaluation frameworks, Safety patterns, Quality assurance, Production monitoring\n\nLecture 7: Agentic Workflows — Tags: End-to-end agentic systems, Multiple agent combination, Real-world use cases, Workflow patterns, Complex systems, Agent integration, Production workflows, System architecture\n\nLecture 8: Agent Deployment & Production Patterns — Tags: Production deployment, Agent scaling, Cost optimization, Deployment strategies, Infrastructure considerations, Performance optimization, Production readiness, Enterprise deployment\n\nLecture 9: Connecting Dots from Every Module — Tags: Knowledge graph, Curriculum synthesis, Full Stack + LLM + Agents integration, How modules connect, Career paths, Next steps, Comprehensive understanding, Future opportunities\n\nLecture 10: Final Capstone Sprint Kickoff — Tags: Project selection, Project planning, Team formation, Mentor matching, Capstone preparation, Final project, Sprint planning, Team collaboration",
+    "category": "curriculum",
+    "module": 3,
+    "module_name": "AI AGENTS (CODE & NO-CODE TRACK)",
+    "is_urgent": false,
+    "links": [],
+    "emails": [],
+    "type": "curriculum_index"
+  }
+]
