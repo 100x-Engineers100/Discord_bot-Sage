@@ -447,7 +447,8 @@ async def generate_sage_response(
     query: str,
     context: str,
     history: List[Dict[str, str]],
-    thread_id: int
+    thread_id: int,
+    image_urls: List[str] = None
 ) -> str:
     """Generate Sage response with clarification loop prevention."""
     async with api_semaphore:
@@ -494,13 +495,18 @@ Response rules:
 
             messages = [{"role": "system", "content": system_prompt}]
 
-            messages.extend([
-                {"role": "user", "content": f"Curriculum Context:\n{context}"}
-            ])
+            messages.append({"role": "user", "content": f"Curriculum Context:\n{context}"})
 
             messages.extend(history[-8:])
 
-            messages.append({"role": "user", "content": query})
+            # Build final user message: text + optional images
+            if image_urls:
+                user_content = [{"type": "text", "text": query}]
+                for url in image_urls:
+                    user_content.append({"type": "image_url", "image_url": {"url": url}})
+                messages.append({"role": "user", "content": user_content})
+            else:
+                messages.append({"role": "user", "content": query})
 
             response = openai_client.chat.completions.create(
                 model=OPENAI_MODEL,
@@ -727,11 +733,33 @@ async def on_message(message):
     for mention in message.mentions:
         query = query.replace(f'<@{mention.id}>', '').strip()
 
-    if not query:
+    # Extract image attachments (Vision API)
+    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+    image_urls = [
+        a.url for a in message.attachments
+        if any(a.filename.lower().endswith(ext) for ext in image_extensions)
+    ]
+
+    # Extract text/code file attachments and append content to query
+    text_extensions = {'.txt', '.py', '.js', '.ts', '.json', '.md', '.yaml', '.yml', '.csv', '.html', '.css', '.sh', '.env', '.toml', '.ini', '.xml'}
+    for attachment in message.attachments:
+        if any(attachment.filename.lower().endswith(ext) for ext in text_extensions):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(attachment.url) as resp:
+                        file_content = await resp.text(encoding='utf-8', errors='replace')
+                        query += f"\n\n[File: {attachment.filename}]\n```\n{file_content[:4000]}\n```"
+            except Exception as e:
+                print(f"[SAGE] Failed to read attachment {attachment.filename}: {e}")
+
+    if not query and not image_urls:
         await message.reply(
             "Hi! I'm Sage, your technical learning assistant. Ask me about curriculum concepts, code issues, or implementations!"
         )
         return
+
+    if not query and image_urls:
+        query = "Please analyze this image and help me understand what's shown."
 
     # Cross-bot forward: if user asks Sage to tag Scout, post a real mention + original question
     if not message.author.bot and detect_cross_bot_tag(message.content, message.mentions, 'sage'):
@@ -746,7 +774,7 @@ async def on_message(message):
         try:
             # Embed query once -- reuse for both RAG searches
             embed_response = openai_client.embeddings.create(
-                input=[query],
+                input=[query[:8192]],  # embedding has token limit
                 model=EMBEDDING_MODEL
             )
             query_embedding = np.array([embed_response.data[0].embedding], dtype=np.float32)
@@ -773,7 +801,7 @@ async def on_message(message):
             # Generate Sage response
             history = get_sage_thread_history(thread_id)
 
-            response = await generate_sage_response(query, context, history, thread_id)
+            response = await generate_sage_response(query, context, history, thread_id, image_urls=image_urls or None)
 
             message_chunks = split_long_message(response)
 
