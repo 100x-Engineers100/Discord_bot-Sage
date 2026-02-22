@@ -17,14 +17,24 @@ const fetchAndCluster = unstable_cache(
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - Number(days));
 
-    const { data: events, error } = await supabase
-      .from("analytics_events")
-      .select("*")
-      .in("event_type", ["query", "tag_crew"])
-      .gte("created_at", startDate.toISOString())
-      .order("created_at", { ascending: true });
-
-    if (error) throw new Error(error.message);
+    // Paginate to bypass Supabase 1000-row default limit
+    const PAGE = 1000;
+    let allEvents: any[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("analytics_events")
+        .select("*")
+        .in("event_type", ["query", "tag_crew"])
+        .gte("created_at", startDate.toISOString())
+        .order("created_at", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      allEvents = [...allEvents, ...(data ?? [])];
+      if (!data || data.length < PAGE) break;
+      from += PAGE;
+    }
+    const events = allEvents;
 
     // -----------------------------------------------------------------------
     // Separate escalated threads + extract query texts

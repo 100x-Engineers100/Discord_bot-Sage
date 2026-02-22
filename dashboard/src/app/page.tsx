@@ -53,15 +53,24 @@ export default function Dashboard() {
     startDate.setDate(startDate.getDate() - timeRange);
 
     try {
-      const { data, error } = await supabase
-        .from("analytics_events")
-        .select("*")
-        .gte("created_at", startDate.toISOString())
-        .order("created_at", { ascending: true });
+      // Paginate to bypass Supabase 1000-row default limit
+      const PAGE = 1000;
+      let allData: AnalyticsEvent[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("analytics_events")
+          .select("*")
+          .gte("created_at", startDate.toISOString())
+          .order("created_at", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        allData = [...allData, ...(data as AnalyticsEvent[])];
+        if (!data || data.length < PAGE) break;
+        from += PAGE;
+      }
 
-      if (error) throw error;
-
-      const events = data as AnalyticsEvent[];
+      const events = allData;
 
       const totalQueries = events.filter((e) => e.event_type === "query").length;
       const gotItCount = events.filter((e) => e.event_type === "got_it").length;
