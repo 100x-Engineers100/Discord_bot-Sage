@@ -4,9 +4,34 @@ import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 
 // ---------------------------------------------------------------------------
-// Core logic — wrapped in unstable_cache so Next.js / Vercel caches it.
-// Throws on Supabase error so the error is NOT cached.
+// Types
 // ---------------------------------------------------------------------------
+
+type QueryEvent = {
+  query_text: string;
+  thread_id: string;
+  created_at: string;
+  matched_lectures?: Array<{
+    lecture_name: string;
+    module_name: string;
+    lecture_num: number;
+    module: number;
+    rag_score: number;
+  }>;
+};
+
+type TopicAccumulator = {
+  query_count: number;
+  escalation_count: number;
+  firstHalf: number;
+  secondHalf: number;
+  query_texts: Set<string>;
+};
+
+// ---------------------------------------------------------------------------
+// Core logic
+// ---------------------------------------------------------------------------
+
 const fetchAndCluster = unstable_cache(
   async (days: string) => {
     const supabase = createClient(
@@ -16,6 +41,10 @@ const fetchAndCluster = unstable_cache(
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - Number(days));
+    const now = new Date();
+    const midpoint = new Date(
+      startDate.getTime() + (now.getTime() - startDate.getTime()) / 2
+    );
 
     // Paginate to bypass Supabase 1000-row default limit
     const PAGE = 1000;
@@ -34,162 +63,150 @@ const fetchAndCluster = unstable_cache(
       if (!data || data.length < PAGE) break;
       from += PAGE;
     }
-    const events = allEvents;
 
     // -----------------------------------------------------------------------
-    // Separate escalated threads + extract query texts
+    // Build escalated threads set + split query events into two buckets
     // -----------------------------------------------------------------------
     const escalatedThreads = new Set<string>();
-    const queryEvents: Array<{
-      query_text: string;
-      thread_id: string;
-      created_at: string;
-    }> = [];
+    const withLectures: QueryEvent[] = [];   // have matched_lectures in metadata
+    const withoutLectures: QueryEvent[] = []; // old prod data — need LLM
 
-    for (const e of events ?? []) {
+    for (const e of allEvents) {
       if (e.event_type === "tag_crew") {
         escalatedThreads.add(String(e.thread_id));
-      } else if (e.event_type === "query" && e.metadata?.query_text) {
-        queryEvents.push({
-          query_text: e.metadata.query_text as string,
-          thread_id: String(e.thread_id),
-          created_at: e.created_at as string,
+        continue;
+      }
+      if (e.event_type !== "query" || !e.metadata?.query_text) continue;
+
+      const qe: QueryEvent = {
+        query_text: e.metadata.query_text as string,
+        thread_id: String(e.thread_id),
+        created_at: e.created_at as string,
+        matched_lectures: e.metadata.matched_lectures,
+      };
+
+      if (
+        Array.isArray(e.metadata.matched_lectures) &&
+        e.metadata.matched_lectures.length > 0
+      ) {
+        withLectures.push(qe);
+      } else {
+        withoutLectures.push(qe);
+      }
+    }
+
+    const topicMap = new Map<string, TopicAccumulator>();
+
+    const upsertTopic = (key: string, qe: QueryEvent) => {
+      if (!topicMap.has(key)) {
+        topicMap.set(key, {
+          query_count: 0,
+          escalation_count: 0,
+          firstHalf: 0,
+          secondHalf: 0,
+          query_texts: new Set(),
         });
       }
-    }
-
-    if (queryEvents.length === 0) return { topics: [] };
-
-    // -----------------------------------------------------------------------
-    // Deduplicate query_texts for the LLM prompt.
-    // Track per-unique-query: every occurrence's thread_id + timestamp.
-    // -----------------------------------------------------------------------
-    const queryMap = new Map<
-      string,
-      Array<{ thread_id: string; created_at: string }>
-    >();
-
-    for (const q of queryEvents) {
-      if (!queryMap.has(q.query_text)) queryMap.set(q.query_text, []);
-      queryMap.get(q.query_text)!.push({
-        thread_id: q.thread_id,
-        created_at: q.created_at,
-      });
-    }
-
-    const uniqueQueries = Array.from(queryMap.keys());
+      const acc = topicMap.get(key)!;
+      acc.query_count++;
+      acc.query_texts.add(qe.query_text);
+      if (escalatedThreads.has(qe.thread_id)) acc.escalation_count++;
+      if (new Date(qe.created_at) >= midpoint) acc.secondHalf++;
+      else acc.firstHalf++;
+    };
 
     // -----------------------------------------------------------------------
-    // LLM clustering
+    // Path 1: group by top matched lecture (no LLM needed)
     // -----------------------------------------------------------------------
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-    const numberedList = uniqueQueries.map((q, i) => `${i}: ${q}`).join("\n");
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are grouping student questions from a coding bootcamp by semantic similarity.
-
-Rules:
-- Questions about the same underlying issue or concept go in one group, regardless of wording
-- Generate a concise topic name (3-4 words max) that is the CRUX of what students are struggling with
-- Be specific: "Virtual Env Setup" beats "Python Basics". "Supabase Connection" beats "Database Issues"
-- Every question index MUST appear in exactly one group. No index left out, no duplicates across groups
-- If questions are too vague, incomplete, or random to fit any real topic, put ALL of them into a single group with the topic name "Unclear Questions". Do NOT create multiple "Unclear" groups — only one
-
-Return ONLY valid JSON. No markdown fences, no explanation:
-[{"topic":"Topic Name","indices":[0,2,5]},...]`,
-        },
-        {
-          role: "user",
-          content: numberedList,
-        },
-      ],
-      temperature: 0.2,
-      max_tokens: 2000,
-    });
-
-    // -----------------------------------------------------------------------
-    // Parse + fallback
-    // -----------------------------------------------------------------------
-    let clusters: Array<{ topic: string; indices: number[] }> = [];
-    try {
-      const raw = (completion.choices[0].message.content || "").trim();
-      const cleaned = raw
-        .replace(/^```(?:json)?\s*/, "")
-        .replace(/\s*```$/, "");
-      clusters = JSON.parse(cleaned);
-    } catch {
-      clusters = [
-        { topic: "Uncategorized", indices: uniqueQueries.map((_, i) => i) },
-      ];
+    for (const qe of withLectures) {
+      const top = qe.matched_lectures![0];
+      const key = `${top.module_name} — ${top.lecture_name}`;
+      upsertTopic(key, qe);
     }
 
     // -----------------------------------------------------------------------
-    // Merge any clusters GPT returned with the same topic name.
-    // Defensive: prompt says don't do this, but LLMs aren't perfect.
+    // Path 2: LLM clustering for old queries without matched_lectures
+    // Cap at 100 unique texts to stay within token budget
     // -----------------------------------------------------------------------
-    const mergedMap = new Map<string, number[]>();
-    for (const cluster of clusters) {
-      const existing = mergedMap.get(cluster.topic);
-      if (existing) {
-        existing.push(...cluster.indices);
-      } else {
-        mergedMap.set(cluster.topic, [...cluster.indices]);
+    if (withoutLectures.length > 0) {
+      // Deduplicate by query_text
+      const uniqueOld = new Map<string, QueryEvent[]>();
+      for (const qe of withoutLectures) {
+        if (!uniqueOld.has(qe.query_text)) uniqueOld.set(qe.query_text, []);
+        uniqueOld.get(qe.query_text)!.push(qe);
       }
-    }
-    clusters = Array.from(mergedMap.entries()).map(([topic, indices]) => ({
-      topic,
-      indices: [...new Set(indices)],
-    }));
 
-    // -----------------------------------------------------------------------
-    // Build topic entries with counts + trending
-    // -----------------------------------------------------------------------
-    const now = new Date();
-    const midpoint = new Date(
-      startDate.getTime() + (now.getTime() - startDate.getTime()) / 2
-    );
+      const uniqueTexts = Array.from(uniqueOld.keys()).slice(0, 100);
 
-    const topics = clusters.map((cluster) => {
-      let query_count = 0;
-      let escalation_count = 0;
-      let firstHalf = 0;
-      let secondHalf = 0;
-      const query_texts: string[] = [];
+      try {
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+        const numberedList = uniqueTexts.map((q, i) => `${i}: ${q}`).join("\n");
 
-      for (const idx of cluster.indices) {
-        if (idx < 0 || idx >= uniqueQueries.length) continue;
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4.1-mini",
+          messages: [
+            {
+              role: "system",
+              content: `Group student Discord questions from a coding bootcamp by topic.
+Rules:
+- Same underlying issue/concept = one group
+- Topic name: 3-4 words, specific (e.g. "Virtual Env Setup", "Supabase Connection")
+- Every index must appear in exactly one group
+- Vague/random questions: one group named "Unclear Questions"
+Return ONLY valid JSON, no markdown:
+[{"topic":"Topic Name","indices":[0,2,5]},...]`,
+            },
+            { role: "user", content: numberedList },
+          ],
+          temperature: 0.2,
+          max_tokens: 3000,
+        });
 
-        const qText = uniqueQueries[idx];
-        const occurrences = queryMap.get(qText) || [];
-        query_texts.push(qText);
-        query_count += occurrences.length;
+        const raw = (completion.choices[0].message.content || "").trim();
+        const cleaned = raw.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+        const clusters: Array<{ topic: string; indices: number[] }> = JSON.parse(cleaned);
 
-        for (const occ of occurrences) {
-          if (escalatedThreads.has(occ.thread_id)) escalation_count++;
-          if (new Date(occ.created_at) >= midpoint) secondHalf++;
-          else firstHalf++;
+        for (const cluster of clusters) {
+          for (const idx of cluster.indices) {
+            if (idx < 0 || idx >= uniqueTexts.length) continue;
+            const qText = uniqueTexts[idx];
+            for (const qe of uniqueOld.get(qText) ?? []) {
+              upsertTopic(cluster.topic, qe);
+            }
+          }
+        }
+      } catch {
+        // LLM failed — dump into a catch-all rather than "Uncategorized"
+        for (const [, events] of uniqueOld) {
+          for (const qe of events) {
+            upsertTopic("Other Questions", qe);
+          }
         }
       }
+    }
 
-      const is_trending =
-        secondHalf > 0 && (firstHalf === 0 || secondHalf / firstHalf > 1.5);
-
-      return { topic: cluster.topic, query_count, escalation_count, query_texts, is_trending };
-    });
+    // -----------------------------------------------------------------------
+    // Build final topic list
+    // -----------------------------------------------------------------------
+    const topics = Array.from(topicMap.entries()).map(([topic, acc]) => ({
+      topic,
+      query_count: acc.query_count,
+      escalation_count: acc.escalation_count,
+      query_texts: Array.from(acc.query_texts).slice(0, 8), // cap display to 8
+      is_trending:
+        acc.secondHalf > 0 &&
+        (acc.firstHalf === 0 || acc.secondHalf / acc.firstHalf > 1.5),
+    }));
 
     topics.sort((a, b) => b.query_count - a.query_count);
     return { topics };
   },
   ["cluster-topics"],
-  { revalidate: 300 } // 5 min TTL — works on Vercel edge cache
+  { revalidate: 300 }
 );
 
 // ---------------------------------------------------------------------------
-// Route handler — thin wrapper around the cached function
+// Route handler
 // ---------------------------------------------------------------------------
 export async function GET(request: Request) {
   const url = new URL(request.url);
