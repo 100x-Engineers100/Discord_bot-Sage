@@ -86,6 +86,36 @@ Otherwise the current code is fine to keep.
 
 ---
 
+## 4. March 2026 event — controlled demo data (1047 queries)
+
+**Script**: `scripts/reset_demo_stats.py`
+
+Clears the Feb 5 – Mar 8 window and inserts exactly 1047 realistic demo queries with:
+- `metadata.is_demo5 = true` on every row
+- Timestamps spread across Feb 5 – Mar 8, 2026
+- Engagement rate: **67%** `(got_it + need_help) / queries`
+- Mentor escalation rate: **12%** `tag_crew / queries`
+
+Event breakdown:
+| Event | Count |
+|---|---|
+| query | 1047 |
+| got_it | 470 |
+| need_help | 231 |
+| tag_crew | 126 |
+| continue_here | 105 |
+
+**What it shows on dashboard**: 1047 total queries, 67% engagement, 12% escalation across the 30-day view.
+
+**Revert after event**:
+```sql
+DELETE FROM analytics_events WHERE metadata->>'is_demo5' = 'true';
+```
+
+Note: this script also deletes all previous demo tags (`is_demo`, `is_synthetic`, `is_demo2`, `is_demo3`, `is_demo4`) before inserting fresh data.
+
+---
+
 ## Git branches
 
 | Branch | Purpose |
@@ -106,6 +136,10 @@ After webinar, you can either merge `dev/synthetic-data-pipeline` into `main`
 | `scripts/generate_synthetic_queries.py` | Generates 1111 synthetic queries | Yes — useful for future RAG testing |
 | `scripts/run_rag_pipeline.py` | Runs queries through RAG + inserts to Supabase | Yes — useful for future RAG testing |
 | `scripts/synthetic_queries.json` | The 1111 generated queries | Yes — reusable test dataset |
+| `scripts/import_march_demo.py` | March 2026 event — 205 queries (is_demo2) | Optional |
+| `scripts/import_feb_demo.py` | Feb 5-24 batch — 100 queries (is_demo3) | Optional |
+| `scripts/fix_demo_stats.py` | Intermediate fix script (superseded by reset) | Optional |
+| `scripts/reset_demo_stats.py` | Final reset — 1047 queries with exact 67%/12% stats (is_demo5) | Yes — rerun for future events |
 | `dashboard/src/app/page.tsx` | Pagination fix | Yes |
 | `dashboard/src/app/api/cluster-topics/route.ts` | Two-path clustering fix | Yes |
 
@@ -126,5 +160,13 @@ GROUP BY is_demo, is_synthetic;
 SELECT COUNT(*) FROM analytics_events
 WHERE metadata->>'is_demo' = 'true'
    OR metadata->>'is_synthetic' = 'true';
+-- Should return 0 after cleanup
+
+-- March 2026 event cleanup
+DELETE FROM analytics_events WHERE metadata->>'is_demo5' = 'true';
+
+-- Verify March event cleanup
+SELECT COUNT(*) FROM analytics_events
+WHERE metadata->>'is_demo5' = 'true';
 -- Should return 0 after cleanup
 ```

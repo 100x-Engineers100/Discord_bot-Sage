@@ -5,7 +5,9 @@
       "Bash(npm run build:*)",
       "WebSearch",
       "Bash(npx next build:*)",
-      "Bash(timeout 10 python:*)"
+      "Bash(timeout 10 python:*)",
+      "Bash(cd:*)",
+      "Bash(cd C:/Users/visha/Downloads/discord-support-bot/dashboard && npx vercel --prod 2>&1)"
     ]
   }
 }

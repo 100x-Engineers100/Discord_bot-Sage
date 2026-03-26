@@ -65,6 +65,13 @@ def main():
 
     print(f"\n[OK] Parsed {len(lectures)} lectures in {parse_time:.2f}s")
 
+    # Generate GPT topics
+    print("\n[3.5/5] Generating topics with GPT...")
+    start_time = time.time()
+    lectures = rag.generate_topics(lectures)
+    topics_time = time.time() - start_time
+    print(f"\n[OK] Generated topics in {topics_time:.2f}s")
+
     # Show sample
     print("\nSample lecture:")
     sample = lectures[0]

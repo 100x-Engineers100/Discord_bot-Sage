@@ -249,6 +249,43 @@ class CurriculumRAG:
         # Return top 8 topics (sorted by length for stability)
         return sorted(list(topics), key=lambda x: len(x), reverse=True)[:8]
 
+    def generate_topics(self, lectures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Replace regex-extracted topics with GPT-generated ones.
+        Uses gpt-4.1-mini to extract 5-8 meaningful technical topics per lecture.
+        Mutates and returns the lectures list.
+        """
+        print(f"Generating topics for {len(lectures)} lectures with GPT...")
+
+        for i, lec in enumerate(lectures):
+            # Use first 1500 chars of content — enough for topic extraction
+            content_snippet = lec['content'][:1500]
+
+            prompt = (
+                f"Lecture: {lec['lecture_name']}\n\n"
+                f"Content:\n{content_snippet}\n\n"
+                "List 5-8 specific technical topics covered in this lecture. "
+                "Focus on tools, frameworks, concepts, and techniques — not generic words. "
+                "Return only a comma-separated list, nothing else."
+            )
+
+            try:
+                response = self.client.chat.completions.create(
+                    model="gpt-4.1-mini",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=100,
+                    temperature=0
+                )
+                raw = response.choices[0].message.content.strip()
+                topics = [t.strip() for t in raw.split(",") if t.strip()]
+                lec['topics'] = topics[:8]
+                print(f"  [{i+1}/{len(lectures)}] {lec['lecture_name'][:50]}: {topics[:4]}")
+            except Exception as e:
+                print(f"  [WARN] Failed topics for Lecture {lec['lecture_num']}: {e}")
+                # Keep existing regex topics as fallback
+
+        return lectures
+
     def embed_curriculum(self, lectures: List[Dict[str, Any]]) -> np.ndarray:
         """
         Embed all lectures using OpenAI text-embedding-3-small
