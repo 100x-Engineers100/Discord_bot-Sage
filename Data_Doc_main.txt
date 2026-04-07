@@ -1797,219 +1797,352 @@ Q: If I download a new model using the Civitai AI Loader or manually, will it be
 A: Yes. Deleting an instance erases its entire storage, including any models you've downloaded. If you want to keep your downloaded models, you should pause the instance instead of deleting it. However, be aware that paused instances still incur storage costs. It's recommended to only start pausing instances once you have a set of custom models and workflows you want to keep
 
 
-Lecture 7: Style Transfer & Upscalers, IC-Light, Segmentation - Video Models in ComfyUI
+Lecture 7: Video Models in ComfyUI
+Learning Outcomes
+By the end of this session, you'll be able to:
 
-This summary is meant to help you folks review or catch up on the session. It captures the key ideas and practical insights shared during the lecture.
+Map every workflow you've learned (ControlNet, IP Adapter, Instant ID, Flux LoRa, Inpainting) to a real-world product or use case
+Decide when to use ComfyUI vs a proprietary model using a 12-category comparison framework
+Design a rough workflow stack for 4 ready-to-build products right now
+Understand where the market is heading: AI films as the next big opportunity
 
 
-What Was Covered
+1. Week's News Roundup
+Gemma 4 — Google's Open-Weight Model
 
-This session was a deep dive into several advanced and highly practical workflows within ComfyUI. We moved beyond basic image generation to explore powerful techniques for image manipulation and enhancement. The key topics covered were: InstantID for face swapping and consistent character generation, Segmentation for automatically masking objects, IC-Light for realistic product relighting, and different Upscaling methods to improve image resolution and detail. The lecture culminated in combining several of these techniques to build complex, real-world applications like a virtual try-on ("Outfit Anyone") and a product photography studio.
+Gemma 4 = Google's open-weight series (NOT Gemini, which is proprietary/closed)
+Download the weights, run locally, fine-tune — fully yours
+Available in 26B and 31B parameter versions
+Performance close to Gemini 3.5. Currently one of the best open-weight models out there
 
+Anthropic Leak — Mythos & Capybara
 
-Key Concepts & Ideas
-InstantID: A technique, similar to an IP-Adapter but specifically optimized for faces. It extracts facial identity from a reference photo and applies it to a new image generated from a prompt. This is the core technology behind many face-swapping and personalized avatar applications.
-Segmentation (Grounding DINO & SAM): A powerful workflow that allows you to automatically identify and create a mask for a specific object in an image using a text prompt.
-How it works: You provide an image and a text prompt (e.g., "perfume bottle," "jacket"). The Grounding DINO model identifies the object in the image that matches the text, and the SAM (Segment Anything Model) creates a precise pixel mask around that object.
-Use Case: This completely automates the manual masking process required for inpainting, making workflows like object removal or background replacement much faster and more efficient.
-IC-Light (Immersive Composition with Lighting): A specialized workflow designed to realistically relight a foreground object to match the lighting conditions of a new background.
-How it works: It takes a foreground object (isolated via a mask) and a background image. It analyzes the lighting in the background (direction, color, intensity) and applies it to the foreground object, creating a seamless and photorealistic composition.
-Use Case: This is a game-changer for product photography, allowing you to place a single product shot into countless different scenes and environments with matching, realistic lighting.
+Someone at Anthropic left folder permissions open → leaked ~2,000 files, 500K+ lines of code
+Two unreleased models discovered: Mythos and Capybara
+Leaked blog posts described them as "extremely powerful but not safe for public release" — early testers already exist
+Key insight: March 2025 was entirely Claude's month. Dominating on model capability AND business model. More is cooking.
 
+OpenAI Acquires TBPN (~$100–200M)
 
-Upscaling Techniques: Methods for increasing the resolution and detail of a generated image.
-Pixel-Based Upscaling: A traditional method that works on the final pixel image. It's fast and excellent for preserving fine details like text or intricate patterns without altering them. It uses an "Upscale Model" (e.g., 4x_NMKD-Siax_200k.pth).
-Latent-Based Upscaling: A diffusion-based method that works in the latent space. It involves upscaling the latent image and then running it through a second KSampler pass with a low denoise value. This technique doesn't just enlarge the image; it adds new, plausible details, making it exceptional for enhancing textures like skin, fabric, and hair, resulting in a more realistic and detailed final image.
+TBPN = daily live tech news show by John Coogan. Newsroom format, 3–4 hrs/day. Was tracking $30M revenue
+Deal: low hundreds of millions, mix of cash + stock
+The real play: AI race is no longer just technical. It's about distribution and narrative control. Owning media = soft power. TBPN can't be too critical of OpenAI anymore.
 
+Anthropic Acquires Coefficient Bio — $400M
 
-ComfyUI Manager: A crucial custom node for ComfyUI that acts as a package manager. It allows you to easily search for, install, and manage other custom nodes (like InstantID, IC-Light, etc.) and download the required models directly within the ComfyUI interface.
-
-
-Tools & Frameworks Introduced
-ComfyUI: The central platform for building all the demonstrated workflows.
-InstantID: A specific set of custom nodes and models for face swapping and identity preservation. Requires downloading several ONNX files, an ipadapter.bin model, and a specific ControlNet model via the ComfyUI Manager.
-Grounding DINO & SAM: The two models that power the automated segmentation workflow. These are installed as a single custom node package (ComfyUI_segment_anything).
-IC-Light: A workflow that requires a specific custom node (ComfyUI-IC-Light-Native) and a specialized IC-Light model, which works with an SD 1.5 checkpoint.
-Civitai: Revisited as the primary source for downloading community-created models, including specialized inpainting checkpoints (like RealVisXL_V3.0_Inpaint) which are essential for high-quality inpainting results.
-
-
-Implementation Insights
-InstantID Workflow:
-Install the InstantID custom node via the ComfyUI Manager and download all required models.
-The main node is Apply InstantID. It is placed between the prompt encoders and the KSampler, similar to a ControlNet.
-It requires multiple inputs: the main model, a Load Image node with the reference face, an InsightFaceLoader node, and a specific ControlNet Model Loader for InstantID.
-It works best with SDXL models and close-up headshots as the reference image.
-
-
-Automated Segmentation Workflow:
-Install the ComfyUI_segment_anything custom node.
-The main node is GroundingDinoSAMSegment.
-It takes three inputs: the image to be segmented, a SAM Model Loader, and a Grounding Dino Model Loader.
-You provide a text prompt (e.g., "jacket") to specify which object to mask.
-The node outputs both the isolated image (with background removed) and the mask itself.
-
-
-Connecting Segmentation to Inpainting:
-Instead of manually creating a mask in a Load Image node, you can pipe the MASK output from the GroundingDinoSAMSegment node directly into the mask input of a VAE Encode (for Inpainting) node. This automates the masking step for inpainting workflows.
-
-
-Invert Mask Node: When changing a background (as in the product photography example), you want to protect the foreground object and edit everything else. The Invert Mask node flips the mask, turning the white (editable) area to black (protected) and vice versa.
-
-
-Latent Upscaling Workflow:
-Start with a standard Text-to-Image workflow that generates your base image.
-Take the LATENT output from the first KSampler.
-Pipe it into an Upscale Latent (by) node. Set the scale factor (e.g., 1.5).
-Pipe the upscaled latent image into a second KSampler.
-Connect the same model and prompts to this second KSampler.
-Crucially, set the denoise value on this second KSampler to a low value (e.g., 0.35-0.5). This tells the model to refine and add detail to the upscaled latent image rather than changing it completely.
-The final LATENT output from this second KSampler is then decoded to produce the high-detail, upscaled image.
-
-
-Common Mentee Questions
-Q: What's the difference between an IP-Adapter and InstantID?
-A: An IP-Adapter is a general tool for transferring the style and composition of a reference image. InstantID is a specialized, more advanced version of an IP-Adapter that is highly optimized to capture and replicate the specific facial features and identity of a person.
-
-
-Q: How do I install all these new nodes like InstantID and IC-Light?
-A: The easiest way is with the ComfyUI Manager. Click the "Manager" button in ComfyUI, go to "Install Custom Nodes," search for the node you need (e.g., "instantid," "ic-light"), and click install. After installing, you must restart ComfyUI. Then, use the "Install Models" section in the manager to download any required model files.
-
-
-
-
-
-Q: My inpainting results look like a bad photoshop patch. What am I doing wrong?
-A: You are most likely using a standard checkpoint model. For high-quality inpainting that blends seamlessly, you must use a model specifically trained for inpainting, such as RealVisXL_V3.0_Inpaint.
-
-
-Q: When should I use a pixel-based upscaler versus a latent upscaler?
-A: Use a pixel-based upscaler when you need to increase resolution while perfectly preserving fine, sharp details, especially text. It's like making a high-quality copy at a larger size. Use a latent upscaler when you want to not just enlarge the image but also add realistic texture and detail, especially for organic surfaces like skin, hair, or fabric. It "imagines" the details that would be present at a higher resolution.
-
-
-Q: The IC-Light workflow seems very complex. Do I need to build it from scratch?
-A: No, you don't have to build complex workflows like IC-Light from scratch. You can find and download pre-made workflow files (as JSON or PNG images with embedded data). The key is to understand the main components so you can use and modify the workflow for your own images and prompts.
-
-
-Lecture 8: Training SDXL LoRA using KohyaSS
-
-This summary is meant to help you folks review or catch up on the session. It captures the key ideas and practical insights shared during the lecture.
-
-What Was Covered
-This session was a comprehensive, hands-on guide to fine-tuning Stable Diffusion models by training a LoRA (Low-Rank Adaptation). We moved beyond using pre-existing models to creating our own custom model trained on a specific person's face (using Sridev's photos as the example). The lecture covered the entire end-to-end process: preparing the image dataset, automatically generating captions using BLIP, adding instance and class tokens, configuring the training parameters in KohyaSS, and finally, starting the training process. This was arguably the most technically dense practical session so far, providing the foundational skills needed to create personalized and highly specific image generation models.
-
-
-Key Concepts & Ideas
-Fine-Tuning vs. Using a Base Model: While base models like JuggernautXL are powerful generalists, fine-tuning allows you to teach the model a new, specific concept it doesn't already know, such as a particular person's face, a unique product, or a custom art style.
-
-
-LoRA (Low-Rank Adaptation): A parameter-efficient fine-tuning (PEFT) method. Instead of retraining the entire multi-gigabyte base model, LoRA trains a small, separate "adapter" file (usually a few megabytes) that contains the new knowledge. This adapter is then loaded alongside the base model during inference.
-Advantages: Faster training, smaller file size, and modularity (you can mix and match different LoRAs with different base models).
-
-
-Core Components for LoRA Training:
-Image Dataset: A collection of high-quality images of your subject (e.g., 20-30 photos of a person from different angles and lighting conditions).
-Captions: A text file for each image describing its content. This helps the model associate the new concept with existing ones.
-A Base Model: The foundational model you are fine-tuning on top of (e.g., SDXL).
-
-
-Key Terminology in LoRA Training:
-Instance Token: A unique, made-up "trigger word" (e.g., zwx man) that you will use in your prompts to invoke the trained LoRA. It should be a rare token that the base model doesn't already associate with something else.
-Class Token: The general category that your subject belongs to (e.g., man, woman, perfume bottle, watch). This helps the model understand what kind of thing it is learning.
-
-
-The Training Loop (Epochs and Steps):
-Steps: The total number of training iterations. A good target for a person's face is around 2,000-3,000 steps.
-Repeats: How many times each image in your dataset is shown to the model in a single epoch.
-Epoch: One full pass through the entire dataset. The total number of steps is calculated as (Number of Images * Repeats) * Number of Epochs.
-
-
-Overfitting: A common problem in training where the model memorizes the training images too perfectly. When overfit, the model can only reproduce the training images and loses its ability to generate novel variations. This can be controlled by not training for too many steps.
-
-
-Tools & Frameworks Introduced
-KohyaSS: A popular and powerful GUI (Graphical User Interface) for fine-tuning Stable Diffusion models, including training LoRAs. It provides a structured interface for configuring all the necessary parameters. The Jarvis Labs instance comes with a pre-configured KohyaSS template.
-Jupyter Lab: The web-based interface on Jarvis Labs used for file management. We used it to create folders, upload our image dataset, and view the generated caption files.
-BLIP (Bootstrapping Language-Image Pre-training): A vision-language model used for automatic image captioning. KohyaSS has a built-in BLIP captioning utility that automatically generates descriptive text for each image in the training dataset.
-BIRME.net: A web tool mentioned for bulk image resizing and cropping. This is particularly important when training SD 1.5 models, which require a fixed image size (e.g., 512x512).
-
-
-Implementation Insights
-Step 1: Launching KohyaSS on Jarvis Labs:
-From the Jarvis Labs dashboard, go to "Templates."
-Select the "Kohya_ss" template and launch an instance with a suitable GPU (e.g., A5000 Pro).
-Once running, click the "API" button to open the KohyaSS web interface.
-
-
-Step 2: Preparing the Dataset:
-Open the Jupyter Lab interface for your instance.
-Create a new folder (e.g., dataset) and upload your training images (around 20-30 high-quality images).
-
-
-Step 3: Automatic Captioning:
-In the KohyaSS UI, go to the "Utilities" tab, then "Captioning," and select "Blip Captioning."
-Enter the path to your image folder (e.g., /home/dataset).
-Click "Caption images." This will generate a .txt file for each image containing a description.
-(Optional but recommended) Go to the "Manual Captioning" tab, load the same folder, and use the "Quick tags" feature to prepend your instance token and class token (e.g., zwx man,) to all caption files.
-
-
-Step 4: Configuring the Training Job:
-Go to the "Lora" tab.
-Dataset Preparation Tab:
-Enter your Instance prompt (e.g., a photo of zwx man) and Class prompt (e.g., a photo of a man).
-Enter the path to your training images folder.
-Calculate and enter the Repeats value. A good rule of thumb is to aim for around 300 steps per epoch. So, Repeats = 300 / Number of Images.
-Specify a destination directory for the prepared training data (e.g., /home/training).
-Click "Prepare training data" and then "Copy info to folders tab."
-
-
-Model Tab:
-Select the pre-trained base model (e.g., sd_xl_base_1.0.safetensors).
-Give your output LoRA model a name (e.g., Sridev_Lora_SDXL).
-Change the "Save precision" to bf16.
-
-
-Parameters Tab:
-Set Epoch to 10. This, combined with the repeats, will result in ~3000 total training steps.
-Set Save every N epochs to 1 to save a version of the LoRA after each epoch. This allows you to test different stages of training.
-Set the LR Scheduler to constant.
-Set the Optimizer to AdamW8bit.
-Set the Learning Rate to 0.00005 (four zeros).
-Set the Max resolution to 1024,1024 for SDXL.
-Set the Network Rank (Dimension) to 32 for a face, and the Network Alpha to half of that (16).
-
-
-Step 5: Start Training:
-Click the "Start Training" button.
-Switch to the Jupyter Lab terminal window (running the tail -f command on the log file) to monitor the training progress and see the loss values.
-
-
-
-
-Common Mentee Questions
-Q: What is the difference between an "instance token" and a "class token"?
-A: The instance token is your unique trigger word for the specific thing you're training (e.g., zwx man for Sridev). The class token is the general category it belongs to (e.g., man). Providing the class helps the model differentiate your specific instance from the general concept, preventing the model from forgetting what a "man" in general looks like.
-
-
-Q: Why do we need to calculate "repeats"? What does it do?
-A: "Repeats" determines how many times each individual image is shown to the model within a single epoch. We calculate it to control the total number of training steps. By aiming for a consistent number of steps per epoch (e.g., 300), we can easily manage the total training duration by simply adjusting the number of epochs.
-
-
-Q: My training is failing or giving bad results. What are the most common mistakes?
-A: The most common issues are:
-Poor quality or insufficient variety in the training dataset.
-Incorrectly configured folder paths.
-Setting the Learning Rate too high or too low. 0.00005 is a very safe starting point for SDXL.
-Training for too many steps, leading to overfitting.
-
-
-Q: What is the difference between bf16 and fp16 precision?
-A: They are both 16-bit floating-point formats used to save memory during training. bf16 (BFloat16) is a more modern format supported by newer GPUs that offers a better balance between precision and performance for deep learning tasks. It's generally recommended to use bf16 if your GPU supports it.
-
-
-Q: Once my LoRA is trained, how do I use it in ComfyUI?
-A: You will download the final .safetensors file from your KohyaSS instance and place it in the ComfyUI/models/loras folder of your ComfyUI instance. Then, in your ComfyUI workflow, you will use a Load LoRA node to apply it.
-
-
+Biotech startup acquisition. Anthropic wants its own internal research division
+Pattern: Everyone wants to be Google DeepMind. AlphaFold + Nobel Prize = proof that AI in science = massive impact
+Play: Use Claude models to accelerate real science, not just consumer apps
+
+Oracle Fires 30,000 Workers (Despite High Profits)
+
+Operational efficiency play — lean team + AI. Profitable company still making the bet
+Expect more of this across tech and non-tech companies through 2025
+
+Seedance 2.0
+
+Currently one of the best video models out there. Access via HiggsField or OpenArt
+Key features: extreme character consistency, cinematic lighting, multiple style themes
+Supports up to 9 inputs simultaneously — images + audio + text → combined into one scene
+High-fidelity motion shots: Seedance 2.0 > Kling 2.5 for fast/dynamic sequences. Veo is better for pure realism
+Filmmaking is now democratized for ~$40–50/month. Unprecedented.
+
+
+2. What ComfyUI Actually Is
+Not an image generator. A workflow builder / AI pipeline engine for images and video.
+The Pro Audio Analogy
+Beyerdynamics and Audio-Technica vs Sony and Bose. Consumer audio vs Pro Audio. Nano Banana / Midjourney = consumer audio — good results out of the box, limited control. ComfyUI = pro audio. Professionals use it because of extreme granular control, not despite the complexity. Same as Photoshop vs Canva.
+Core Definition
+
+Multi-stage pipeline builder — chain nodes to control every parameter of generation
+Pixel-level control: lighting, character, style, depth, pose — none of this exists in proprietary tools
+Reproducibility: fix a seed → get the exact same output. Change one node → change one variable
+Cost at scale: local GPU = one-time hardware cost. Every image/video after that is free
+
+Node Skill Transfer
+Even if you never generate images professionally, ComfyUI trains you on node-based thinking. Next in cohort: Freepik Spaces (node-based), N8N (node-based workflow automation). Once you can wire ComfyUI, every other node tool feels familiar.
+
+3. Workflows Learned → Real-World Use Cases
+ControlNet
+Best for: controlling spatial structure of an image (pose, lines, depth, edges)
+
+Fashion / Apparel Photography — AI models on Myntra are already AI-generated. ControlNet transfers poses. No studio, no models, no photographers. 50 images/day from one person.
+Architectural Redesign / Interior Lighting — Use MLSD for straight lines (walls, rooms). Canny for curves. Real example: ex-cohort student replaced his entire lighting simulation workflow for corporate buildings with ComfyUI. Even the physics of lighting was accurate.
+Precise Product Editing — Keep silhouette, change colors/looks/variations across multiple design iterations
+3D Mockups Without 3D — Depth-based control for product photography without building actual 3D renders
+
+Quick ref: MLSD detects straight lines → best for rooms and buildings. Canny detects all edges → best for organic shapes and products.
+IP Adapter
+Best for: extracting and transferring style, face, or character data across images
+
+Influencer / Model Generation — Consistent character across 30+ photos, no photoshoot needed
+LinkedIn / Corporate Headshots — Same face, multiple backgrounds and styles
+Comic / Graphic Novel Consistency — Same characters across all panels. Can do branded 2-pager comics as event merch
+
+Instant ID
+Instant ID = IP Adapter specifically for facial identity
+
+YouTube Thumbnails — MrBeast-style AI-edited thumbnails. Minute face changes at scale need this level of control
+Corporate Headshots at scale
+Consistent characters for short films and branded content
+
+Flux LoRa Training
+Best for: highest-fidelity consistency. Beats IP Adapter and Instant ID when detail matters. More setup, absolutely worth it.
+
+Brand Style Generator — Train on brand assets → generate new assets in the same style automatically
+Product Photoshoots (huge market) — Train on the actual product → infinite photoshoot variations, any background, any lighting
+Characters for games, websites, marketing assets
+
+Real example — GTA 6 Bombay Trailer: 100x YouTube video set in Bombay. Used 10–12 Flux LoRas: 1 for style, ~10 for individual characters. That's how you get feature-film-level consistency.
+Real example — Amul Girl LoRa: Trained on ~40 Amul Girl comic images. Outputs matched character style, scene aesthetic, font style. Text generation was the only weak point. Lesson: LoRa captures visual style extremely well. Text rendering is still better on proprietary tools.
+Inpainting / Outpainting
+Best for: editing specific regions of an existing image
+
+Packaging Label Changes — Swap labels on product mockups without regenerating the whole image
+Photo Retouching / Corrections — Remove objects, add elements, fix blemishes
+Outpainting — Expand canvas (same concept as Adobe Generative Fill)
+
+IC Light (Self-Study — Not Covered in Lecture)
+Google "IC Light ComfyUI workflow", download the JSON, install missing nodes and models.
+
+Transfers lighting from a reference image onto your target image
+Use case: product on white BG → composite into lifestyle scene with matching lighting and reflections
+Multi-shot lighting consistency — same mood across a batch of images
+
+Real example — Custom Jewelry Visualizer: Ex-cohort student built an AI tool for his family's 3-generation jewelry business. User inputs gem types, carats, purity, jewelry type, and the story of the piece. ComfyUI workflow generates photorealistic renders. Business converts renders into actual made-to-order jewelry. Experience Center launched in Delhi.
+
+4. ComfyUI vs Proprietary — Decision Framework
+Final class score: ComfyUI 9 – Proprietary 6. But it's not about who wins overall — it's about knowing which tool wins for your specific need.
+CategoryComfyUIProprietaryWinnerOutput QualityHigh, but requires tuningExtremely high, out of the boxProprietaryGranular ControlPixel-level, node-by-nodePrompt-only, limitedComfyUICharacter/Brand ConsistencyLoRa training = superiorBreaks after 2–3 iterationsComfyUIFine-Tuning / Custom TrainingFull access to model weightsNot possible (closed weights)ComfyUISpeed / LatencyGPU-dependent, slowerServer farms, very fastProprietaryEase of UseHigh learning curveOne prompt, doneProprietaryReproducibilitySeed = exact same outputNever the same twiceComfyUICreative FlexibilityInfinite — modify any nodeWait for the company to ship a featureComfyUICost at ScaleHardware only, images are freePay-per-token/image/videoComfyUIProduct IntegrationOwn full pipeline, build anythingAPI only, black boxComfyUISafety / ComplianceFully on you, no guardrailsCompany-managed guardrailsProprietaryDependency RiskLow — you own everythingHigh — pricing/API changes can kill youComfyUIOn-Device FeasibilityImpossible without quantizationWorks on any phone/browserProprietaryIP Ownership100% yours — weights, outputs, logicZero legal ownershipComfyUIScalabilityRequires more hardwareInfra handled, easy to scaleProprietary
+Use Proprietary when: speed matters, simple consumer app, aesthetics out of the box, massive scale without infra headache.
+Use ComfyUI when: consistency required, professional creative tools, custom fine-tuning, building a real product, IP ownership matters, cost at scale.
+
+5. What You Can Build Right Now
+With the workflows from the last 3 weeks, you can build all of this today.
+Interior Design Restyling Tool
+Stack: Depth ControlNet + Image-to-Image + Inpainting + IC Light (optional for lighting)
+Output: Same room in multiple styles — modern, Indian, Victorian, European. IC Light only needed if accurate lighting physics matter to the client.
+AI Apparel Try-On Engine (Virtual Fitting Room)
+Stack: Pose ControlNet + IP Adapter + Instant ID (for face) + LoRa (for clothing)
+Output: Any model wearing any clothing, face and garment both consistent across shots.
+Product Photoshoot Engine
+Stack: Segmentation + Inpainting + IC Light + Multi-ControlNet (depth etc.)
+Simpler alternative: Train a Flux LoRa on the product → prompt-based generation.
+Choose based on how much control you need over every frame.
+Brand Style Generator
+Stack: Flux LoRa training on brand assets
+Input: 30–40 brand visuals in the desired style
+Output: Infinite new assets in the exact brand style — zero design brief needed each time.
+
+6. What's Coming Next
+The Next Big Opportunity: AI Films
+AI films — ad films, brand films, short films — is the biggest open opportunity right now. Micro-agencies are forming in this space. Proprietary video models (Seedance, Veo) are better than open-source for cinematic output — use them, don't fight it. ComfyUI still has a role in film pipelines but it's not the hero tool here. Core skill to develop: film terminology, shot language, creative vision.
+Next Week: Freepik Spaces
+Node-based AI creation platform. Credits provided — no personal subscription needed. Followed by: video model prompting and the AI filmmaking module.
+Deploying ComfyUI Workflows as Products
+Coming soon: how to wrap your ComfyUI workflow into a real product with a front-end. Users get a simple prompt bar — they never touch ComfyUI directly.
+
+7. Key Q&A
+Q: How do we fix text generation in Flux LoRa outputs?
+LoRa is not the tool for text. Do your ComfyUI generation, then use a proprietary model (Nano Banana etc.) just for the text layer. Proprietary models win on text rendering, full stop.
+Q: Why would a brand pay a freelancer when they can do it in-house?
+Same reason brands hire consultants. They want assurance and don't want the headache of figuring it out themselves. Plenty of ComfyUI workflows on Fiverr already. The market exists.
+Q: Flux LoRa vs Stable Diffusion — which to use?
+Flux, always. SD is older. Flux is the current standard for open-weight image models.
+Q: Short-form AI video for Instagram/YouTube — which tools?
+Hygen (recommended, affordable) or Sync Labs (better, more expensive). Sridev's actual pipeline: Claude for script → cloned voice → AI avatar. Entire reel is AI — zero manual recording.
+Q: What GPU do I need to run ComfyUI and build products?
+RTX 4090 or 5090 minimum for serious production use.
+Q: ControlNet / IP Adapter on Flux — possible?
+Yes, absolutely. Both work on Flux models.
+Q: Models beyond SDXL and Flux — what to use?
+Stick to Flux for now. It's good for almost everything. Best way to learn other models: just use them.
+
+8. Announcements
+Assignment Deadline — 9th April
+WAN Jungle Composition due 9 April. Miss the deadline = no review from the team. Submit on LMS. Resubmissions: email cohort@100xengineers.com
+Discovery Calls Now Open
+Details on Discord. Book your slot.
+Practice sets (weekly questions) are not mandatory. Assignments on LMS are mandatory.
+
+Lecture 8: ComfyUI Advanced Workflows 
+
+What This Session Covers
+
+Full Flux LoRA training setup on Jarvis Labs (end-to-end)
+Dataset preparation for faces and products
+Trainer configuration: steps, learning rate, LoRA rank
+WAN 2.2 video model setup in ComfyUI
+How to download models from Hugging Face manually
+Using a trained LoRA inside ComfyUI
+
+
+1. Flux LoRA Training — Environment Setup
+Why Jarvis Labs and not local?
+CUDA drivers and machine configs vary too much locally. Jarvis Labs gives you a clean, consistent GPU environment. If your machine is powerful enough (strong GPU, 30–50 GB free space), you can try locally — but expect errors.
+Step-by-step setup (follow the Notion doc, not memory):
+
+Go to Templates → select PyTorch model
+Choose A6000 (48 GB VRAM). Any 48 GB VRAM GPU works
+Storage: set to 2000, name your instance (e.g., flux-train), hit Launch
+Click the VS Code icon on your instance
+In VS Code: Explorer → Open Folder → Home → OK → Trust Authors
+Toggle the bottom panel to open Terminal
+Paste commands from the Notion doc one by one (shared on Discord → Resources tab)
+
+What the commands do, in order:
+
+Update system + install Python 3.12 (old Jarvis Labs had 3.10 — that caused the training errors)
+Git clone the AI Toolkit repo (folder appears in left bar)
+cd ai-toolkit — move into the folder
+Create a Conda environment — Conda is like venv but without package leaks. Name it flux
+conda init → close terminal → open a new terminal (critical step — do not skip)
+conda activate flux — you'll see (flux) at the start of the line when active
+cd ai-toolkit again in the new terminal
+Install PyTorch + Torch models via pip (pip install torch...) — takes a while, these are large
+Install all requirements from the AI Toolkit repo
+Install specific versions of Gradio, Pydantic, HuggingFace Hub
+Create a .env file in the AI Toolkit folder, add your HF token as HF_TOKEN=your_token_here
+Run huggingface-cli login, paste your token
+Run the final Python command to start the trainer → two URLs appear
+Open the Gradio.live public URL in your browser — this is the Flux LoRA Trainer UI
+
+Getting your Hugging Face token:
+Go to huggingface.co → Profile → Access Tokens → Create New Key → select Write → copy and save it somewhere secure (you won't see it again).
+Gated model permission (required before training):
+Flux is a gated model. Go to Black Forest Labs Flux.1 Dev on Hugging Face → Files and Versions tab → request access. Takes a few clicks. Without this, training won't work.
+
+2. Dataset Preparation
+Optimal dataset size: 20–30 images (max ~40). 100 images is too many.
+For faces:
+
+Different lighting conditions, angles, expressions
+Include close-ups, some torso shots (not full body)
+Wearing different clothes across images, different locations
+Face must be clearly visible in most shots
+No group photos — only the subject
+
+For products:
+
+Different angles, lighting conditions, environments
+Include someone holding it, flat lay, close-ups
+Capture different surfaces and backgrounds
+AI-generated product images are fine if they look realistic
+
+Captions:
+You have two options:
+
+Lazy way (recommended for beginners): just paste your trigger word in every caption
+Proper way: write a short description per image, e.g., "a man in a black blazer wearing a tie, trigger_word"
+Include the trigger word + category (e.g., "man") in prompts. Example: Sid ZWX, man in a bustling cafe wearing a beanie hat
+Blip captioning is an option but unreliable on Jarvis Labs — skip it for now
+
+Trigger word:
+A unique keyword that tells the model "generate this specific thing." Use something uncommon like SidZWX. If your name is unusual enough, you can use your actual name. The trigger word is your LoRA's activation keyword — always include it in your prompts at inference.
+
+3. Training Configuration
+Recommended settings by use case:
+Use CaseLearning RateLoRA RankStepsFace0.0004 (default)16 (default)1200–2000Product0.00025161200–2000Style0.00015161200–2000
+Key parameters:
+
+Steps: 1200 gives good output. 2000 is better. Max is 4000. Go above 4000 → overfitting (model just returns one of your training images, no generalization)
+Learning rate: how large each parameter adjustment is per step. Too high = big jumpy steps = poor detail. Styles need the smallest LR (most detail). Faces are in the middle. Style LoRAs are most detail-sensitive
+LoRA rank: how many layers of detail to store. Rank 16 = ~160 MB. Rank 32 = ~440 MB. Rank 64 = ~600 MB. Rank 16 is usually enough
+Model to train: select Dev (Flux Dev)
+Low VRAM: uncheck it if you have A6000 (48 GB)
+
+Even More Advanced Options (must check the "Use More Advanced Options" box or nothing applies):
+
+save_every: set to 200 (save a checkpoint every 200 steps)
+max_steps_save_to_keep: set to 10 (keep all saved checkpoints, don't auto-delete)
+sample_every: set to 200 (generate sample images every 200 steps to track quality)
+Add 3 sample prompts to visually monitor training progress. Include trigger word + category in each prompt
+
+
+4. During and After Training
+
+Training takes ~1 hour per 1000 steps on A6000
+At each checkpoint (200, 400, 600, etc.) you get 3 sample images — one per prompt
+Output files (.safetensors models + sample images) are saved in AI Toolkit → outputs → your_lora_name
+400–600 steps often gives a usable result for faces
+To use the model: right-click the .safetensors file → download → upload to your ComfyUI instance under Models → LoRAs
+
+If you run out of credits mid-training: Jarvis Labs usually goes to -50 credits before stopping. It doesn't kill your instance mid-run, but don't rely on this.
+Do you redo setup every time? No. If you keep your instance running, you just reactivate Conda, re-navigate to the folder, and re-run the trainer script. You don't redo the full install.
+
+5. Using Your LoRA in ComfyUI
+After downloading the .safetensors model to your machine:
+
+Open JupyterLabs on your ComfyUI instance
+Navigate: ComfyUI → Models → LoRAs
+Drag and drop or use the Upload button
+In your ComfyUI workflow, add a Load LoRA node between your Load Diffusion Model and CLIP loader
+Set the LoRA model to your trained file
+In your positive prompt: use trigger word + category. e.g., Sid ZWX, man, cowboy hat holding shotgun
+Flux guidance CFG: set to 1
+
+LoRA is Flux-specific. You cannot use a Flux-trained LoRA on SDXL or SD 1.5. Different base model = different LoRA training process.
+
+6. WAN 2.2 — Video Model in ComfyUI
+What is a video?
+A sequence of images played in order. Below 12 FPS, the human eye detects individual frames. 12 FPS = stop-motion feel. 24 FPS is the standard for smooth video.
+How length works in ComfyUI:
+
+length in the Latent Image node = number of frames generated
+length = 121 at 24 FPS = ~5-second video (121 ÷ 24 ≈ 5)
+WAN 2.2 preferred length: 121 frames. Can go up to 138
+Lowering FPS to 12 doubles video duration but produces choppy/clay-motion output
+
+Downloading WAN 2.2 models:
+You need 3 separate files — the base model loads separately from CLIP and VAE.
+
+Diffusion model: In ComfyUI Manager → search WAN 2.2 → install the 5B parameter Pi2V model (~10 GB, quantized FP16)
+VAE: Manager doesn't have WAN 2.2 VAE. Go to Google → search WAN 2.2 VAE ComfyUI Hugging Face → right-click Download → copy link → use the download command from the Notion doc (paste the link in, remove everything after .safetensors) → run this command inside ComfyUI → Models → VAE via JupyterLabs terminal
+CLIP (UMT5 XXL): Available in Manager → just install it from there
+
+After downloading all 3: hit Reload in ComfyUI, all models should appear.
+WAN 2.2 workflow differences from standard image workflow:
+
+Adds Model Sampling SD3 node (adjusts model weights for ComfyUI — nothing else)
+Empty Latent Image has a length field instead of just width/height
+Adds Create Video node at the end (sets FPS and assembles frames)
+Everything else (positive/negative prompt, KSampler, VAE decode, CLIP) is the same as image workflows
+Negative prompts are in Chinese by default — this is normal, WAN is a Chinese model
+
+WAN 2.2 notes:
+
+The 5B model is fast but lower quality. Full WAN 2.2 is 64 GB
+Seed Dance 2.0 does not have open weights — you cannot put it in ComfyUI
+LTX 2.3 is also new and good but the workflow is more complex — a recorded video will be shared
+
+
+7. Key Q&A
+Q: Can we stack multiple LoRAs together?
+Yes. Add multiple Load LoRA nodes in your workflow.
+Q: Can we use a trained LoRA inside a WAN video workflow?
+No — LoRAs trained for Flux image models are not compatible with WAN video models.
+Q: What GPU do I need to run this locally?
+~30–50 GB free storage, powerful GPU with good CUDA support. RTX 4090 or better.
+Q: How do I train a LoRA for lighting conditions or textures?
+Use the style settings (LR 0.00015), collect images of that specific lighting/texture, and caption them specifically — e.g., ZWX lighting condition, warm golden hour light.
+Q: HeyGen vs Sync Labs for avatars?
+Sync Labs is better for facial expressions. It's also more expensive, so not recommended for everyday use. Pranay's recommendation: Sync Labs > HeyGen for quality.
+Q: Can we automate ComfyUI workflows?
+To some extent — but automation always needs a trigger event. The end of the module covers deploying workflows as actual apps with a prompt-based front-end.
+Q: What is LoRA in simple terms?
+You have a big pre-trained model. LoRA puts a small adapter on top of it with a tiny new dataset. The big model's weights don't change — the adapter learns on top of them. Output becomes specific to your new dataset. Small, fast, cheap compared to full fine-tuning.
+Q: Flux 1 vs Flux 2 for LoRA training?
+For AI influencer / character work, use Flux 2 — it gives significantly better output. Flux 1 is what this session covered (Flux Dev).
+Q: Can LoRA be used for jewelry/furniture/animals?
+Yes to all. Jewelry — train per design. Furniture — use product settings. Animals — same process as faces. Don't use group images; only the subject should be in frame.
+
+8. What's Coming Next
+
+Assignment: train a Flux LoRA (deadline announced Wednesday)
+Recorded videos dropping: WAN 2.1 model download tutorial, LTX 2.3 setup
+Last week of ComfyUI — next up is closed-source models (Google Nano Banana Pro)
+End of module: deploying ComfyUI workflows as apps with a front-end interface
+Friday: News + new lecture (OpenAI acquired a media company — more then)
 Lecture 9: FLUX Migration and FLUX Tools
 
 This summary is meant to help mentees review or catch up on the session. It captures the key ideas and practical insights shared during the lecture.

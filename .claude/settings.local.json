@@ -7,7 +7,9 @@
       "Bash(npx next build:*)",
       "Bash(timeout 10 python:*)",
       "Bash(cd:*)",
-      "Bash(cd C:/Users/visha/Downloads/discord-support-bot/dashboard && npx vercel --prod 2>&1)"
+      "Bash(cd C:/Users/visha/Downloads/discord-support-bot/dashboard && npx vercel --prod 2>&1)",
+      "Bash(mkdir -p /c/Users/visha/Downloads/color-picker-mcp/src)",
+      "Read(//c/Users/visha/Downloads/**)"
     ]
   }
 }
