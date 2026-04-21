@@ -1620,182 +1620,445 @@ Give it your all. Stick to the process."
 command in any creative field going forward. Tools are for everyone.
 Judgment is not."
 
-Lecture 5: Controlnet and ip adapters
+Lecture 5: Controlnes, IP Adapters & Flux
+Instructor: Pranay | Platform: ComfyUI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE QUESTION THIS LECTURE ANSWERS:
+"Prompting alone can't control the exact structure or style of an image —
+what other levers do we have?"
+Answer: ControlNet (structural guidance) and IP Adapters (image-as-prompt).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-This summary is meant to help you folks review or catch up on the session. It captures the key ideas and practical insights shared during the lecture.
+[SESSION CONTEXT]
+- Pranay started with a live rebuild of the basic text-to-image workflow
+  (Load Checkpoint → CLIP Text Encode (positive + negative) → KSampler →
+  Empty Latent Image → VAE Decoder → Preview Image)
+- Students built it together from memory — Socratic warm-up
+- Model used: SDXL (Juggernaut / RealisticVision). Flux covered at end.
+- Disclaimer: will only repeat steps twice — watch recordings for step-by-step
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — WHAT IS CONTROLNET?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-What Was Covered
+Core Idea:
+ControlNet adds structural information into the diffusion process
+in a specific formatted image (not a text prompt). It overlays a
+preprocessed map onto the Gaussian noise before generation begins.
+Result: the generated image follows the structure of the reference,
+regardless of what text prompt you give it.
 
-This session was divided into two main parts. First, we had a crash course on prompt engineering for image generation, emphasizing that domain knowledge is more critical than just knowing how to phrase things. We broke down the structure of a good prompt and shared resources for building a vocabulary of artistic styles and camera techniques. The second and primary part of the lecture was a hands-on deep dive into ControlNets within ComfyUI. We explored what ControlNets are, how they work, and built workflows from scratch for several key types, including Canny (edges), Depth, and OpenPose. The session aimed to demystify these powerful tools and show how they provide granular control over the image generation process.
+Analogy used in class: "like a stencil" — the structure is locked,
+the style/content can change.
 
+How it works internally:
+1. Take a reference image
+2. Run a preprocessor → converts image to a structured "condition map"
+   (black background, white edges / stick figure / depth map etc.)
+3. This condition map is overlaid on the latent noise at each denoising step
+4. The model uses this overlay as structural guidance throughout generation
 
-Key Concepts & Ideas
-Prompt Engineering Re-framed: The lecture argued that "prompt engineering" is less about a special skill and more about having domain knowledge. Knowing the right terminology (e.g., specific art styles, lighting types, camera lenses) is more important than just phrasing. The goal is to clearly communicate your vision to the model.
+Example shown: Reindeer image processed with Canny →
+same reindeer silhouette appeared in mountain, grass field, snow, forest
+— same structure, completely different scene.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — BUILDING A CONTROLNET WORKFLOW IN COMFYUI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Structure of an Image Prompt: A basic but effective prompt can be structured with three core components:
-Subject: Who or what is in the image, and what are they doing?
-Style: The artistic aesthetic (e.g., "pop art," "in the style of Van Gogh," "cyberpunk futurism").
-Medium: The artistic medium (e.g., "oil painting," "3D render," "watercolor").
-Additional details like lighting ("soft lighting," "dramatic lighting") and camera specifications ("shot on a Kodak film camera") can be added for more specific results.
+3 New Nodes (added on top of basic text-to-image workflow):
 
+  1. LOAD IMAGE node
+     — brings in your reference image
 
-Key ControlNet Types Introduced:
-Canny: Detects the sharp edges and outlines in an image, creating a line-art style map. Useful for preserving the overall shape and structure of an object or scene.
-Depth: Creates a depth map of the image, where lighter areas are closer to the camera and darker areas are farther away. Excellent for maintaining the 3D spatial arrangement and layout of a scene.
-OpenPose: Detects the pose of a human figure in the image and represents it as a "stick figure" skeleton. This is used to replicate the exact pose in a newly generated character.
-Scribble: Converts an image into a simplified, "scribbled" or hand-drawn-like outline.
-MLSD: Detects only straight lines in an image. Highly effective for architectural and interior design applications.
-Segmentation (SAM): Identifies and color-codes different objects and segments within an image. Useful for complex scene understanding and object manipulation.
+  2. PREPROCESSOR node (e.g., Canny Edge Preprocessor)
+     — converts image to the condition format
+     — resolution: always set to 1024 for SDXL
+     — Output: black background with white edge lines
 
+  3. APPLY CONTROLNET node
+     — sits BETWEEN the CLIP text prompts and the KSampler
+     — inputs: positive prompt, negative prompt, preprocessed image
+     — outputs: positive (modified), negative (modified)
 
-Multi-ControlNet Workflows: It's possible to chain multiple ControlNets together in a series to apply multiple constraints simultaneously (e.g., using OpenPose for the character's pose and Depth for the background's layout).
+  4. LOAD CONTROLNET MODEL node
+     — loads the specific ControlNet model matching your preprocessor
+     — For Canny + SDXL: use "controlnet-canny-sdxl-1.0-mid"
+     — DO NOT use SD 1.5 models with SDXL
 
+Connection order:
+Load Image → Preprocessor → Apply ControlNet (image input)
+CLIP Pos → Apply ControlNet (positive in) → KSampler
+CLIP Neg → Apply ControlNet (negative in) → KSampler
+Load ControlNet Model → Apply ControlNet (model input)
 
-Tools & Frameworks Introduced
-ComfyUI: The central tool for this hands-on lecture. We used it to build, modify, and run various ControlNet workflows.
-Jarvis Labs: The cloud GPU platform used to run our ComfyUI instances.
-PromptHero: A website mentioned as a resource for reverse-engineering prompts from existing AI-generated images, helping to build one's vocabulary of styles and terms.
+CRITICAL NOTE: Never connect Load Image DIRECTLY to Apply ControlNet.
+Always preprocess first.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — TYPES OF PREPROCESSORS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Implementation Insights
-Building a ControlNet Workflow in ComfyUI:
-Start with a basic Text-to-Image workflow (Checkpoint, CLIP Encoders, KSampler, VAE Decode, etc.).
-Add a Load Image node to bring in your reference image.
-Add a Preprocessor node (e.g., CannyEdgePreprocessor, DWOpenposePreprocessor). Connect your reference image to its input. This node will generate the control map.
-Add a Load ControlNet Model node and select the corresponding ControlNet model (e.g., control_sdxl_canny.safetensors). The preprocessor and the ControlNet model must match (e.g., Canny preprocessor with Canny model).
-Add an Apply ControlNet node. This is the crucial integration point.
-Connect the conditioning (positive and negative prompts) from your CLIP Text Encode nodes to the conditioning inputs of the Apply ControlNet node.
-Connect the chosen ControlNet Model to the control_net input.
-Connect the preprocessed image (the control map) from your preprocessor node to the image input.
-Connect the conditioning outputs from the Apply ControlNet node to the positive and negative inputs of the KSampler. The ControlNet now sits "between" the prompts and the KSampler.
-Switching Between ControlNet Types: To change from one ControlNet type to another (e.g., from Canny to OpenPose), you only need to change two key nodes: the Preprocessor and the ControlNet Model. The rest of the workflow structure remains the same.
-ControlNet Strength: The strength parameter in the Apply ControlNet node (a value from 0 to 1) determines how strongly the control map influences the final image. A higher value means a more rigid adherence to the control map.
-Start/End Percentage: An advanced parameter in the Apply ControlNet node that controls when in the denoising process the ControlNet is applied. For example, an end_percent of 0.8 on a 20-step generation means the ControlNet will only be active for the first 16 steps.
+All of these preprocessor nodes are already included in ComfyUI —
+no custom installs needed.
 
+CANNY EDGE
+- Extracts sharp, exact edges of the subject
+- White lines on black background
+- Best for: structure/pose replication
 
-Common Mentee Questions
-Q: What is the difference between a Preprocessor and a ControlNet Model?
-A: The Preprocessor (e.g., CannyEdgePreprocessor) is the tool that analyzes your input image and creates the control map (e.g., the black-and-white edge image). The ControlNet Model (e.g., control_sdxl_canny) is the neural network that uses this control map to guide the KSampler during the image generation process. You need both, and they need to match.
+SCRIBBLE
+- Extracts a rough, sketchy interpretation
+- Looser than Canny — more creative freedom in output
+- Good for: hand-drawn input → photorealistic output
 
+LINE ART
+- Similar to Canny but slightly rougher edges
+- Less exact than Canny, more defined than Scribble
 
-Q: Where does the Apply ControlNet node fit into the workflow?
-A: It acts as an intermediary. It takes the original prompt conditioning, combines it with the guidance from the ControlNet model and the preprocessed image, and then passes this new, more constrained conditioning to the KSampler. It effectively "injects" the control into the generation process.
+OPEN POSE
+- Detects human body pose → outputs a stick-figure skeleton
+- Best for: controlling pose of a person across different images
 
+MLSD (Straight-Line Detection)
+- Only detects perfectly straight lines (vertical/diagonal, not curves)
+- Only available for SD 1.5, not SDXL yet
+- Best for: interior design, architecture workflows
+- WHY: furniture curves are noise; you only need room dimensions
 
-Q: Can I use multiple ControlNets at the same time?
-A: Yes. You can chain Apply ControlNet nodes in a series. The output conditioning from the first Apply ControlNet node becomes the input conditioning for the second one, and so on. This allows you to combine constraints, for example, using OpenPose for a character's pose and Depth for the scene's layout.
+DEPTH
+- Creates a depth map: closest objects = white, farthest = black
+- Previously used to fix hands before Flux
+- Now: useful for 3D composition control
 
+NORMAL MAP
+- Used to change surface texture or color of specific areas
+- Useful for material/surface manipulation
 
-Q: My ControlNet output looks bad or doesn't follow the reference image. What's wrong?
-A: Common issues include:
-Mismatch between the preprocessor and the ControlNet model (e.g., using a Depth preprocessor with a Canny model).
-The strength parameter in the Apply ControlNet node is set too low.
-The main checkpoint model (e.g., JuggernautXL) might not be well-suited for the style you're trying to achieve.
-The resolution of your preprocessor might be too low, losing important details.
+SEGMENTATION
+- Segments objects from background
+- Better methods exist now, but good to know
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — CONTROLNET UNION MODEL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+- Model: "ControlNet Union SDXL" (~4GB)
+- Supports all ControlNet types in one model
+- Output is decent but not as good as specialized models
+- Use individual models for production-quality work
 
-Q: What is the "Ghibli trend" and can I do it with this?
-A: The "Ghibli trend" involves turning real-life photos or scenes into the distinct art style of Studio Ghibli films. While you can get close by using a ControlNet (like Canny or Depth) to preserve the structure and prompting for "in the style of Studio Ghibli," more advanced techniques like IPAdapters (which we will cover later) are even better for style transfer.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — IP ADAPTERS (Image Prompt Adapters)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+Core Idea:
+IP Adapter = "Image Prompt Adapter"
+CLIP converts TEXT → machine language (tokens).
+IP Adapter converts IMAGE → machine language.
+The KSampler treats this image encoding as a prompt — not as structural guidance.
+
+Key Distinction:
+- ControlNet = structural guidance (pose, edges, depth) — structural
+- IP Adapter = image-as-prompt (style, character, content) — semantic
+DO NOT mix these up. They do completely different things.
+
+IP Adapter variants:
+- Standard IP Adapter: transfers overall style/character
+- IP Adapter Plus Face: focuses specifically on facial features
+  (Used when you want to transfer a person's face into a new scene)
+
+Loading Multiple Images for IP Adapter:
+- Search for "Image Batch Multi" node
+- Set count up to 5 images
+- Feed multiple reference images for stronger consistency
+
+Practical note: IP Adapter gives you a style/character influence.
+It does NOT guarantee 1:1 face accuracy. For face consistency,
+you need LoRA training (covered Lecture 6).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6 — INPAINTING WORKFLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Use case: Change only one specific area of an existing image
+(example shown: replace a boy in a jungle with a girl, keep background)
+
+Steps:
+1. Load Image node (your base image)
+2. Replace "Empty Latent Image" with "VAE Encode for Inpainting" node
+   — has a MASK input
+3. Right-click on the image in Load Image node → "Open in Mask Editor"
+4. Paint a mask over the area to change → Save
+5. Set "grow_mask" to ~25 (controls how far mask bleeds)
+6. Update your prompt to describe the NEW content for masked area
+7. Connect: pixel → pixel, mask → mask
+8. VAE encodes the masked image → feeds to KSampler as latent
+
+Note: For best results, use a model trained specifically for inpainting.
+Regular diffusion models can inpaint but quality is lower.
+Segmentation ControlNet can also be used to auto-mask objects.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7 — SEED AND CONSISTENCY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Seed = a random value assigned to the Gaussian noise starting point.
+If you fix the seed → same base noise → similar structure in all generations.
+Fix seed + vary only the prompt = consistent character across images
+(limited — LoRA is better for true consistency)
+
+Practice sets were designed around this: students had to figure out
+seed locking on their own as a hidden discovery.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+UPCOMING / ANNOUNCEMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Flux workflow to be shared next session
+- Flux is a newer, better model than SDXL
+- Harder sessions only for next 2-3 weeks; after that: FreePik, closed-source tools, UGC ads, video models
+- Pranay to host Discord doubt-solving sessions
+- LTX 2.3 is currently best open-source video model (needs powerful GPU)
+- Sync Labs > HeyGen for avatar/lip-sync facial expressions
+- Morphica: wrapper app built by a C5 student (similar to Higgsfield)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SESSION POLL RESULT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Easy: 11% | Medium: 60% | Hard: 29%
+Most said "understood but need more practice" — Pranay committed to
+releasing more recorded material on ControlNet and IP Adapters.
 
 Lecture 6: Flux Lora Training
 
-This summary is meant to help you folks review or catch up on the session. It captures the key ideas and practical insights shared during the lecture.
+LECTURE 6 — Flux LoRA Training
+Instructor: Pranay | Platform: JavasLabs + ComfyUI
 
-What Was Covered
-This was a very hands-on and packed session where we explored several advanced image generation workflows in ComfyUI, moving beyond the basics of ControlNets. We introduced three powerful concepts: IP-Adapters for style transfer, Inpainting for editing specific parts of an image, and Outpainting for expanding an image's canvas. The lecture culminated in building a complex, multi-stage "Outfit Anyone" workflow that combined all these techniques to digitally place a new item of clothing onto a person's image. This session was designed to demonstrate how individual nodes and concepts can be combined to create sophisticated, practical applications.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE QUESTION THIS LECTURE ANSWERS:
+"IP Adapters don't guarantee face consistency — how do we actually
+train the model to know a specific person or product?"
+Answer: Fine-tune a LoRA on your subject's images. The model LEARNS
+your subject rather than just referencing it at inference time.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+[SESSION CONTEXT]
+- Sridev opened with AI news (below)
+- Pranay ran the full Flux workflow setup + attempted live LoRA training
+- Training hit a GPU/driver error on JavasLabs mid-session (live debugging)
+- A pre-recorded video was committed to Discord as the fix
+- Students were told: the harder sessions end here; everything forward gets easier
 
-Key Concepts & Ideas
-IP-Adapter (Image Prompt Adapter): A technique that allows you to use an image as a prompt to influence the style, color palette, and overall aesthetic of a generated image.
-How it works: Instead of just using a text prompt, you provide a style reference image. The IP-Adapter analyzes the style of this reference and applies it to the image being generated, which can be guided by a separate text prompt or another image.
-Use Case: This is the key to achieving style consistency. For example, you can use one image with a specific "Ghibli" or "Pixar" style to ensure all subsequent generated images maintain that same aesthetic.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEWS (Session Opener — Sridev)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+TurboQuant (Google)
+- Extreme model compression without degrading output quality
+- Can run on local systems with less compute
+- Caused RAM company stocks to drop — less hardware demand
+- Google is pushing SLMs (Small Language Models) hard
+  → Models trained only on specific tasks: coding, copywriting, etc.
 
-Inpainting: The process of editing a specific, masked area of an image while leaving the rest of the image untouched.
-How it works: You load an image, draw a "mask" over the area you want to change, and provide a prompt describing what you want to see in that masked area. The model then regenerates only the content within the mask, blending it with the surrounding image.
-Use Case: Adding or removing objects from an image (e.g., adding a cowboy to a landscape, removing a person from a backyard).
+Claude Mythos (Anthropic leak)
+- Anthropic accidentally released ~3,000 pages of docs
+- Pages referenced two unreleased models: "Mythos" and "Capybara"
+- Mythos described as more powerful than Opus 4.6
+- Not released publicly — security concerns (firewall exploitation risk)
+- Invite-only access only
+- Pranay's take: likely connected to US govt vs Anthropic conflict
+  over access to powerful models. Possibly ASI-adjacent capability.
 
+Tribelab V2 (Meta)
+- Trained to understand human neural activity
+- Zero-shot prediction of brain activity during complex tasks
+- Could be groundbreaking for medical treatment / neuroscience
+- Acts as a digital twin of human neural patterns
 
-Outpainting: The process of extending the canvas of an image, generating new content beyond its original borders.
-How it works: You use a padding node to add empty space around your original image. This padded area effectively becomes a mask, and the inpainting model then fills in this new space with content that contextually matches the original image, guided by a prompt.
-Use Case: Expanding a landscape, changing an image's aspect ratio, or creating a wider scene from a close-up shot.
-Specialized Models: The lecture emphasized the importance of using the right model for the job. For inpainting and outpainting tasks, it's crucial to use a checkpoint model specifically trained for inpainting (e.g., RealVisXL_V3.0_Inpaint), as standard models will produce poor, "pasted-on" results.
-Combining Workflows: The main takeaway was that the true power of ComfyUI lies in combining these individual techniques. The "Outfit Anyone" workflow was a prime example, using:
-Inpainting: To mask out the person's original clothing.
-IP-Adapter: To extract the texture and style of the new clothing item.
-ControlNet (OpenPose): To maintain the person's original pose and ensure the new clothing fits correctly.
+Sora Shutdown
+- OpenAI burns ~$10B/month, $4B was just on Sora
+- Sora video app shut down for public use
+- Disney deal with OpenAI also cancelled
+- CDance 2.0 costs ~$2.5 per 5-second video vs. Sora's ~$1
 
+MIDO (AI World Engine)
+- Built by a teenager in China, open-source
+- Treats the world as a math equation
+- Predicts geopolitical future events based on historical patterns
+- Uses GraphRAG (students will learn this later in the cohort)
 
-Tools & Frameworks Introduced
-ComfyUI: The central platform for building all the demonstrated workflows, including IP-Adapter, Inpainting, Outpainting, and the combined "Outfit Anyone" pipeline.
-Civitai: A website for discovering and downloading community-created AI models (checkpoints, LoRAs, etc.). We discussed how to find models and use the Civitai AI Checkpoint Loader node to download them directly into ComfyUI.
-ComfyUI Manager: A custom node for ComfyUI that allows you to easily install and manage other custom nodes and models. It was used to install the Civitai AI node.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — FLUX MODEL: WHY IT'S DIFFERENT FROM SDXL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+SDXL model files are "zip files":
+One checkpoint = model + CLIP + VAE packed together.
+Load Checkpoint node unpacks all three automatically.
 
-Implementation Insights
-IP-Adapter Workflow:
-Start with a basic Text-to-Image workflow.
-Add an IPAdapter Unified Loader node and connect the MODEL from the main checkpoint to it.
-Add a Load Image node for your style reference image.
-Add an IPAdapter node. Connect the image from Load Image, the ipadapter from the Unified Loader, and the model from the Unified Loader.
-Connect the MODEL output from the IPAdapter node to the model input of the KSampler.
-In the IPAdapter node, set the weight_type to Style Transfer for best results.
+Flux model files are UNZIPPED:
+You load each of the three components SEPARATELY.
 
+The 3 nodes you need for Flux (replacing Load Checkpoint):
 
-Inpainting Workflow:
-Start with a Text-to-Image workflow, but ensure the Load Checkpoint node is using an inpainting model.
-Delete the Empty Latent Image node.
-Add a Load Image node and upload the image you want to edit.
-Right-click the image in the Load Image node and select "Open in MaskEditor." Draw a mask over the area to be changed and save.
-Add a VAE Encode (for Inpainting) node. Connect the pixels from the Load Image node and the mask from the Load Image node to their respective inputs. Also, connect the VAE from the checkpoint.
-Connect the latent output of this VAE Encode node to the latent_image input of the KSampler.
+1. LOAD DIFFUSION MODEL
+   - Select: "flux1-dev" (best model, ~24GB)
+   - IMPORTANT: Change weight_type to "fp8_e4m3fn_fast"
+     (This quantizes/compresses the model for GPU memory)
+   - Quantization = compressing a model to fit in available VRAM
 
+2. DUAL CLIP LOADER
+   - Flux uses TWO clip models (SDXL used one)
+   - Clip 1: "clip_l"
+   - Clip 2: "t5xxl"
+   - Set type and keep device as default
 
-Outpainting Workflow:
-Build an Inpainting workflow as described above.
-Add a Pad Image for Outpainting node between the Load Image node and the VAE Encode (for Inpainting) node.
-In the Pad Image node, specify the number of pixels to add to the left, right, top, or bottom.
+3. LOAD VAE
+   - Select: "ae.safetensors" (Flux-specific VAE)
+   - DO NOT use the standard SDXL VAE
 
+Color-coded outputs match what Load Checkpoint output:
+  Purple = model, Yellow = CLIP, Red = VAE
 
-"Outfit Anyone" Workflow (Combined):
-This workflow uses all three techniques. The base workflow is an Inpainting setup to mask the person's torso.
-An IP-Adapter workflow is added, using an image of the new clothing item as the style reference. Its MODEL output is piped into the KSampler.
-A ControlNet (OpenPose) workflow is added to maintain the person's pose. Its conditioning output is piped into the KSampler. This complex chain ensures the final image has the correct person, pose, and the new clothing applied correctly to the masked area.
+Additional Flux-specific node:
+FLUX GUIDANCE node
+- Placed BETWEEN positive CLIP prompt and KSampler
+- Recommended guidance value: 3.5
+- In KSampler: set CFG scale to 1 (not the usual 7)
+  This is because Flux handles guidance differently internally.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — WHAT IS A LoRA?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Downloading Models with Civitai AI Checkpoint Loader:
-Install the node via the ComfyUI Manager.
-Find the desired model on the Civitai website and copy its numerical ID from the URL.
-Paste this ID into the Civitai AI Checkpoint Loader node in ComfyUI.
-Provide your Civitai API key (found in your account settings on the website).
-When the workflow runs, it will automatically download the model into the correct folder.
+LoRA = Low-Rank Adaptation. Fine-tuning technique for diffusion models.
+You are not retraining the entire model (too expensive).
+You train a small adapter that modifies the model's understanding
+of a specific subject (a face, a product, an art style).
 
+Why LoRA > IP Adapter for consistency:
+- IP Adapter: image encoded as a prompt at inference time → approximate
+- LoRA: model LEARNS the subject during training → exact recall
+- After training, call the LoRA by trigger word in your prompt
+  e.g., "photo of SRIDEV in a jungle" → model knows who SRIDEV is
 
-Common Mentee Questions
-Q: What is the difference between an IP-Adapter and a standard Image-to-Image workflow?
-A: In a standard Image-to-Image workflow, the input image is the starting canvas that gets modified. With an IP-Adapter, the input image is used as a prompt to influence the style and content of a newly generated image. The IP-Adapter is much better at transferring the overall aesthetic and style.
+Use cases:
+- Face LoRA: consistent person across unlimited images
+- Product LoRA: consistent product appearance (shape, label, color)
+- Style LoRA: consistent visual style (e.g., Amul girl aesthetic)
+- Brand LoRA: brand asset style replication
 
+Sridev's live example:
+Trained a LoRA on 40 Amul Girl comic images.
+Output: new Amul-style comics generated with correct character, style,
+even attempted fonts. Text wasn't perfect but aesthetic was preserved.
+This demonstrated "brand style generator" use case.
 
-Q: Why do I need a special "inpainting" model? Why can't I just use my regular model?
-A: Inpainting models are specifically trained to understand masked areas and blend newly generated content seamlessly with the existing, unmasked parts of an image. A standard model will often create a result that looks like a "patch" or a sticker has been pasted onto the image, with harsh edges and poor integration.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — LORA TRAINING SETUP (JavasLabs)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+Platform: JavasLabs (GPU rental in browser)
+Recommended GPU: A6000 or A5000 — use these specifically
 
+Step-by-step (commands to be shared on Discord after session):
 
-Q: How can I remove an object from an image instead of adding one?
-A: You use the exact same inpainting workflow. Simply mask the object you want to remove and provide a prompt that describes the background that should be there instead (e.g., if removing a person from a beach, the prompt could be "sandy beach, ocean waves"). The model will fill the masked area with the described background.
+1. Open terminal in JavasLabs
+2. Create a conda environment
+3. Activate the conda environment
+4. Install PyTorch (torch) — this is the deep learning framework
+   needed for training. Also used for LLM fine-tuning later.
+5. Clone the AI Toolkit repo (training framework)
+6. Install pip requirements: pip install -r requirements.txt --break-system-packages
+7. Create a .env file in the AI Toolkit folder
+   - Name the file exactly ".env"
+   - Add: HF_TOKEN=<your_huggingface_token>
 
+Getting a HuggingFace token:
+- Go to huggingface.co → Login → Profile → Access Tokens
+- Click Create New Token → select "write" permissions
+- Give it any name (e.g., "C7Live")
+- Copy token IMMEDIATELY — it only shows once
+- Paste into your .env file
+- Save a local copy of the token
 
-Q: The combined "Outfit Anyone" workflow looks very complicated. How do I approach building something like that?
-A: You build it block by block. Start with a working Text-to-Image workflow. Then, add the Inpainting components and make sure they work. Next, add the ControlNet components and test them. Finally, add the IP-Adapter components. By building and testing each part individually before combining them, the process becomes much more manageable.
+8. Log in to HuggingFace via terminal (paste token when prompted —
+   nothing will visibly appear, that's normal)
+9. Confirm "Login successful" + your username appears
+10. Run the training command (to be shared)
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — LIVE DEBUG (What Happened + Fix)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Q: If I download a new model using the Civitai AI Loader or manually, will it be deleted if I delete my Jarvis Labs instance?
-A: Yes. Deleting an instance erases its entire storage, including any models you've downloaded. If you want to keep your downloaded models, you should pause the instance instead of deleting it. However, be aware that paused instances still incur storage costs. It's recommended to only start pausing instances once you have a set of custom models and workflows you want to keep
+Error encountered: "Media driver on your system is too old. Please update GPU driver."
 
+Root cause: The version of PyTorch installed was incompatible with
+the CUDA driver version on the A6000 in JavasLabs.
+Python version (3.10) also a contributing factor.
+
+Fix applied live: Uninstalled the torch version, installed a
+CUDA-compatible version for that specific driver.
+
+Lesson from Pranay: "This is what 70-80% of coding looks like.
+Error → investigate → fix → retry. That's debugging."
+
+Resolution: Updated commands + a pre-recorded working version
+to be shared on Discord/announcements.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — DATASET PREPARATION (Image Collection)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Key principle: Good training = good data. Garbage in, garbage out.
+
+For a face LoRA:
+- Collect 15-25 photos of the person
+- Include: different angles, different lighting, different expressions
+- Include: some full-body, some close-up, some with accessories
+- No heavy filters or edits
+- Caption each image (AI toolkit auto-captions, or write manually)
+
+For a product LoRA:
+- Photograph product from multiple angles
+- Different backgrounds, different lighting conditions
+- Include the product label clearly visible in enough shots
+- 15-20 images is sufficient sweet spot
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6 — FLUX ControlNets & Redux (IP Adapter)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Flux has its own ControlNet versions (not SDXL's):
+- Available: Canny and Depth only (not Open Pose, MLSD, etc.)
+- Loaded like LoRAs, not like SDXL ControlNets
+
+Flux IP Adapter equivalent: "Redux"
+- Works like IP Adapter but for Flux architecture
+- Use Redux when you want image-based prompting with Flux
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7 — LOADING WORKFLOWS FROM THE INTERNET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+How to use any ComfyUI workflow you find online:
+1. Download the workflow JSON file
+2. Drag and drop it into the ComfyUI canvas
+3. If nodes are missing → install via ComfyUI Manager
+4. Load the required models into the model folders
+5. Hit Run — navigate unknown nodes by reading their labels
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ANNOUNCEMENTS / Q&A HIGHLIGHTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- First assignment releasing this week — based on SDXL (not LoRA)
+- Character consistency with seed: fix seed + define clothing, beard,
+  specific features in prompt — this was the expected approach
+- LoRA now supersedes seed-based consistency going forward
+- WAN 2.2 video model: preferred frame length = 121 frames (5 seconds)
+  Max ~138 frames before quality drops
+- SSH connection: advanced way to connect VS Code to JavasLabs GPU
+- For Comfy UI: no image generation limit on local system, only your GPU limits you
+- Pranay to host Discord voice sessions for hands-on debugging
 
 Lecture 7: Video Models in ComfyUI
 Learning Outcomes
@@ -1966,577 +2229,1110 @@ Details on Discord. Book your slot.
 Practice sets (weekly questions) are not mandatory. Assignments on LMS are mandatory.
 
 Lecture 8: ComfyUI Advanced Workflows 
+Instructor: Sridev | Platform: Conceptual
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE QUESTION THIS LECTURE ANSWERS:
+"We've spent 3 weeks inside the engine room — why does this matter
+in the real world, and when should I use ComfyUI vs. proprietary tools?"
+This is the bridge lecture: technical → commercial.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[SESSION CONTEXT]
+- Lighter session intentionally — last 2-3 lectures were "steep"
+- Sridev said feedback ratings dipped; team took it seriously
+- No new workflow building today — instead: real-world framing
+- Title: "Nodes to Money"
+- Lecture originally planned as advanced Comfy workflows;
+  re-structured as a product/market thinking session
+- Fine-tuning (Lecture 6) is the hardest technical content.
+  Everything forward is easier.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEWS (Sridev)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Gemma 4 (Google)
+- Open-weight model (download to local machine, customize weights)
+- Versions: 26B and 31B parameter models
+- Almost as powerful as Gemini 3.5
+- Developer-focused (not consumer-facing like Gemini)
+
+Anthropic Leak (folders not Claude Mythos again)
+- Somebody at Anthropic set wrong folder permissions
+- ~2,000 files leaked including ~500,000 lines of code
+- Two models referenced: Mythos and Capybara
+- Press releases inside described models as "extremely powerful,
+  not safe to release publicly"
+- Some people in early tester phase
+- Sridev's read: "March was entirely Claude's month. They're
+  dominating both model efficacy and business model."
+
+OpenAI acquires TBPN
+- TBPN: daily tech news show by YouTubers John Coogan + partner
+- Already on track for $30M revenue this year
+- Acquisition price: low hundreds of millions (cash + stock)
+- Sridev's take: "Soft power move. OpenAI now controls a media
+  narrative channel. Companies want distribution, not just tech.
+  Whoever controls the story, controls the market."
+
+Anthropic acquires Coefficient Bio ($400M)
+- Biotech startup
+- Play: Anthropic wants its own science/research division
+  (like Google DeepMind / AlphaFold)
+- AI for progressing science = one of the biggest applied AI use cases
+
+Oracle fires 30,000 workers despite high profitability
+- Operational efficiency play: lean team + AI
+- Sridev's prediction: "You'll see this happen across a lot of
+  large tech companies this year. AI is replacing non-creative roles."
+
+CDance 2.0 (Seed Dance)
+- In Sridev's opinion: currently best video model
+- Up to 9 inputs: images + audio + text, combined into one scene
+- Extreme character consistency, cinematic lighting
+- Available on Higgsfield and OpenArt
+- Previous best for fast-motion: Kling 2.5
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — WHAT IS COMFYUI, ACTUALLY?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+It is NOT an image generator.
+It is an AI pipeline engine / workflow builder for images and videos.
+
+Analogy from session:
+"ComfyUI is the pro audio of image tools."
+Consumer audio (Canva, Midjourney, NanoBanana) = Sony headphones.
+Pro audio (Comfy) = Beyerdynamic DT770 — only professionals
+know the brand, because only professionals need that level of control.
+
+Another analogy used by a student (Sridev approved it):
+"Photoshop vs Canva. If you tell a designer you work on Canva, they will hate you."
+
+Node-based workflow skill = transferable:
+Learning Comfy teaches you how to think in node-based tools.
+FreePik Spaces (next lectures), n8n, and other workflow tools
+all follow the same paradigm. Learn one, the rest get easier.
+
+Skills inventory you now have:
+- Text-to-image
+- Image-to-image
+- ControlNet (Canny, Depth, Pose, Lineart, MLSD, Scribble)
+- Multi-ControlNet chaining
+- IP Adapters (style + character transfer)
+- Instant ID (facial consistency without training)
+- Flux LoRA training (product + face consistency)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — COMFYUI vs PROPRIETARY: THE SCORECARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Final score from live session: ComfyUI 9 — Proprietary 6
+
+PROPRIETARY WINS ON:
+- Output quality out-of-the-box (no tuning needed)
+- Speed / latency (connected to massive server farms)
+- Ease of use (plain language prompting, one-click)
+- Scalability (infrastructure handled for you)
+- Safety/compliance (guardrails built-in by company)
+- On-device feasibility (usable on phones, tablets)
+
+COMFYUI WINS ON:
+- Granular control (pixel-level control, no other tool comes close)
+- Character/brand consistency (LoRA > anything proprietary offers)
+- Fine-tuning & custom training (you can't touch proprietary weights)
+- Reproducibility (seed = exact same output, every time)
+- Creative flexibility (change any node, any parameter)
+- Cost at scale (free after hardware, vs. pay-per-image/video)
+- IP ownership (you own all weights, logic, data, outputs)
+- Integration in products (you own the full pipeline → build on top)
+- Dependency risk (no company can break your workflow overnight)
+
+Decision framework:
+→ Choose PROPRIETARY for: speed, simplicity, aesthetics, scalability, consumer apps
+→ Choose COMFYUI for: control, consistency, custom training, ownership, real products
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — 10 REAL PRODUCTS YOU CAN BUILD NOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+With everything learned in the last 3 weeks, you can build all of these:
+
+1. INTERIOR DESIGN RESTYLING TOOL
+   Nodes: Depth ControlNet + Image-to-Image + Inpainting + IC Light (optional)
+   Output: Same room, multiple style variations (Modern / Indian / Victorian etc.)
+
+2. AI APPAREL TRY-ON ENGINE (Virtual changing room)
+   Nodes: Pose ControlNet + IP Adapters + Instant ID (face) + LoRA (clothing)
+   Output: Same model, any outfit, fully consistent
+
+3. PRODUCT PHOTOSHOOT ENGINE
+   Option A: Segmentation + Inpainting + IC Light + Multi-ControlNet
+   Option B (simpler): Train a Flux LoRA on the product, prompt different scenes
+   Output: Product in any background/environment/lighting
+
+4. BRAND STYLE GENERATOR
+   Nodes: Flux LoRA training on brand assets
+   Sridev's example: 40 Amul Girl comics → LoRA → consistent new comics in Amul style
+
+5-10: (Listed but not expanded)
+   - AI avatar / influencer engine
+   - Architecture/real estate visual generator
+   - Fashion lookbook generator
+   - E-commerce product variation engine
+   - Character-consistent illustration book
+   - Social media content factory
+
+Key insight from Sridev:
+"ComfyUI is not a tool. It's an engine to build tools."
+The workflows you've learned are starting points.
+The number of products you can build with this is infinite.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — THE BIGGEST OPPORTUNITY RIGHT NOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI FILMS — ad films, brand films, short films.
+
+Why now:
+- Space is ripe. Micro-agencies forming rapidly.
+- Filmmaking is being democratized for the first time in history
+- $40-50/month in subscriptions = tools to make something that
+  previously required millions in production budget
+- Recruiters from Ogilvy, ad agencies actively asking for this skill
+
+What's coming next in the cohort:
+- FreePik Spaces (next week) — node-based but proprietary models
+- Building UGC ads end-to-end
+- AI filmmaking principles + storyboarding
+- Video model prompting (Kling, VO, CDance)
+- By end of module: build your own AI film
+
+Note on where ComfyUI fits in filmmaking:
+Open-source video models (WAN, LTX) are behind CDance, VO, Kling
+for creative quality. In film workflows, proprietary models win.
+ComfyUI shines for image consistency work within those pipelines.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q&A HIGHLIGHTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Best model right now: Flux over SDXL. Stick with Flux for everything.
+- Text in images: proprietary always wins. Use NanaBanana for text only.
+- IC Light: won't be covered in lectures; pre-recorded video coming.
+- How to deploy Comfy workflows as apps: covered toward end of module.
+- Sridev's own YouTube pipeline: AI-generated. Voice is cloned.
+  Avatar is AI. Human editors handle motion design on long-form.
+- 100X uses AI for full video production: script (AI first draft),
+  voice (cloned), avatar (AI), editing (human team of 4).
+- Assignment deadline: 9th April. WAN Jungle Composition.
+  Submit by that date or lose review window.
+- Practice sets: not mandatory. Assignments: mandatory.
+- Discovery calls now open. Check Discord for booking link.
+
+Lecture 9: Intro to FreePik Spaces
+Instructor: Pranay | Platform: FreePik
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE QUESTION THIS LECTURE ANSWERS:
+"We spent weeks in the ComfyUI engine room learning fundamentals.
+Now we step into a production environment — how do we use that
+knowledge with best-in-class proprietary models quickly?"
+Answer: FreePik is the commercial production layer where your
+latent space / ControlNet / LoRA knowledge becomes directly useful.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[SESSION CONTEXT]
+- Started 5 minutes late due to two Zoom links running simultaneously
+- FreePik credits being rolled out — students told they'd receive access
+- Platform: freepik.com — already includes most top models
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — WHAT IS FREEPIK?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Pre-AI era: Stock image/video/illustration library.
+Post-AI era: Repositioned as an AI aggregator.
+
+What's an AI aggregator?
+A platform that takes the best AI models, pulls their APIs,
+and wraps them in a polished UI. Users don't need to manage
+models directly — they just choose and generate.
+
+Models currently available on FreePik:
+- Google Imagen 3 (NanaBanana)
+- Google Imagen 3 Pro
+- Google Imagen 2 (fast)
+- CDance 2.0 (just launched during this lecture week)
+- Flux 2.2 Pro
+- CDream 5 Lite
+- Kling 2.5 / 3.0 (video)
+- LTX 2 (video)
+- OpenAI Sora (until April 24th)
+
+Other aggregators like FreePik: Higgsfield, OpenArt, Genspark.
+FreePik chosen specifically because it has FreePik Spaces
+(node-based workflow interface — covered in Lecture 10).
+
+Why your ComfyUI knowledge gives you an edge here:
+Most users on FreePik just prompt and click.
+They don't understand: latent space, ControlNet, IP adapters,
+referencing, LoRA behavior. You do.
+That's where your leverage is — you can extract better results
+because you understand what's happening under the hood.
+
+Analogy from Pranay:
+"FreePik is like learning Framer (frontend builder with templates).
+ComfyUI was learning React/Next.js from scratch."
+Both valid — different levels of control.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — FREEPIK UI NAVIGATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Three things you need (pinned in left sidebar):
+1. Image Generator
+2. Video Generator
+3. Spaces (covered in Lecture 10)
+
+Image Generator:
+- Select model: click "Auto" → "All Models" → choose (Flux 2.2 Pro is fast, 21s)
+- Add style reference: click "Style" → these are pre-trained LoRAs
+  (Pastel Cartoon, Oil Painting, etc.)
+- Add character reference: upload a face image for character consistency
+  (equivalent to IP Adapter in ComfyUI)
+- Aspect ratio, resolution settings available
+- Tip: Imagen 3 Pro = best quality for images; CDream 5 Lite = fastest
+
+Style reference = what you now know as a LoRA.
+You're selecting a pre-trained style adapter — FreePik is just hiding
+the technical layer from you.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — VIDEO GENERATOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Models available: Kling 2.5, Kling 3.0, CDance 2.0, LTX 2, VO3 Lite
+
+Credit cost comparison (approximate):
+- Kling 2.5: ~250 credits / video
+- Kling 3.0 (5s, 720p, no audio): ~350 credits
+- CDance 2.0: most expensive (~$2.5/video externally)
+- Google VO3 Lite: cheapest option, uses fewest credits
+
+Direct API vs. FreePik pricing:
+- FreePik adds ~30-40% markup over direct API calls
+  Example: Kling on FreePik = ~$0.20/sec vs. direct API = ~$0.14/sec
+- For scale: use APIs directly. For learning/prototyping: FreePik fine.
+
+Tips:
+- Best image model on FreePik: Imagen 3 Pro (quality), CDream 5 Lite (speed)
+- Best video models: Kling 3.0 (balance), CDance 2.0 (quality ceiling)
+- For avatar/lip-sync: sync.ai (better facial expressions than HeyGen)
+  but more expensive
+- For voice cloning: 11Labs (audio only), CDance 2.0 (voice in video)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — LIVE DEMO: UGC-STYLE VIDEO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+What was built:
+- Generated a product image (coffee-related product)
+- Generated a female character (UGC-style influencer)
+- Combined both as references in image generator
+  → Generated composite image of girl with product
+- Fed that composite image into video generator (Kling)
+- Output: raw iPhone-look UGC-style video
+
+Process shown manually step-by-step.
+Next lecture (Lecture 10): this exact workflow automated in Spaces.
+
+Video continuity example shown:
+A video where character opens a product wrapper → cuts to coffee mug.
+- Same dress color across all 3 scenes
+- Same product, same mug texture
+- Video continuity = character/object consistency maintained across cuts
+Pranay noted: this is solved in current top models.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — DATA PRIVACY NOTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Important: Any image you upload as reference on FreePik is processed
+on their servers. Any image given to Imagen 3 → goes to Google's servers.
+Any reference fed to GPT models → OpenAI's servers.
+
+This is why enterprises use ComfyUI locally:
+Sensitive product data, face data, brand assets — they don't want
+that leaving internal systems. Open-source local models = data stays yours.
+
+This is a key reason why ComfyUI is still the industry standard
+for any company with confidentiality requirements.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q&A HIGHLIGHTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Video continuation with multiple frames: use start + end images in video node;
+  Series: Image1→Image2 → video, Image2→Image3 → video, chain them
+- Can you use reference images in Kling? Yes, covered later
+- Traditional camera vs AI video: internet will split into two tracks.
+  AI for scale. Real camera for authenticity/connection.
+- Template apps (social media "animate your photo" apps): same workflow,
+  just packaged. They charge premiums because users don't understand the pipeline.
+  You do — that's your advantage.
+- Best model for images: Imagen 3 Pro; for speed: CDream 5 Lite
+- Inpainting in FreePik: available under "Image Editor"
+- Can you build applications on top of FreePik? Not yet (as of this date).
+  Coming soon. Higgsfield has more templates if needed.
+- Credits in Spaces: entire UGC workflow from this session = ~1,300 credits
+- Commercial licensing: only on purchased plans (not gifted cohort credits)
+
+Lecture 10: Branding & Marketing Workflows in FreePik Spaces
+Instructor: Pranay (+ Sridev for news) | Platform: FreePik Spaces
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE QUESTION THIS LECTURE ANSWERS:
+"You've learned to do each step manually in FreePik — generate image,
+generate video. How do you chain those steps into an automated,
+repeatable content production pipeline?"
+Answer: FreePik Spaces — a node-based workflow interface where
+each step becomes a node, and the whole chain runs in one click.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[SESSION CONTEXT]
+- Session from home (Sridev's home setup)
+- Credits for FreePik being finalized by Monday (billing delay with FreePik)
+- Practice set: build your own UGC workflow (released after session)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEWS (Sridev)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Netflix VOID model
+- Stands for: Video Object Interaction Deletion
+- Works like SAM2 (segmentation) but on video frames
+- Removes objects from scenes without reshooting
+- Target use: post-production for filmmakers
+  (e.g., remove unwanted object that crept into a shot)
+- No public usage announced yet
+
+CIA Ghost Murmur
+- Technology that located a downed F-15 pilot in Iranian mountains
+  after 40 hours missing, using heartbeat detection
+- Uses Quantum Magnetometry: detects weak electromagnetic signals
+- AI processes drone-captured data, cancels strong electromagnetic noise,
+  isolates the heart's weak signal to confirm the pilot is alive
+- Interesting non-creative AI use case
+
+OpenAI new funding round
+- Another round raised — gives runway to 2029
+- Models slipping behind Google and Claude in multiple categories
+- Sora shut down. Disney deal cancelled.
+- IPO talk: ~$1 trillion market cap target this year
+- Summary: "They're in panic mode — Google wins image/video, Claude wins everything else"
+
+OpenAI new image model (discovered on LM Arena)
+- Leaderboard shows it ranks #1 for image EDITING tasks
+  (adding/removing/stylizing elements in existing images)
+  Score vs. Imagen 3: 1394 vs. 1388 — barely ahead
+- Still behind Imagen 3 for text-to-image generation
+- Won't replace Imagen 3 as Sridev's preference for most workflows
+
+LM Arena explained:
+- Anonymous benchmark: same question → 2 AI responses → user picks better one
+- Neither model is labelled until after you vote
+- Millions of votes → anonymous ranking forms
+- Currently: Claude Opus 4.6 #1 for text, Claude #1 for code
+- Use it to check which model is best for specific tasks
+
+Anthropic: 171 Emotional Representations
+- Research finding: Claude has 171 distinct "emotional states" that affect responses
+- Practical implication for prompting:
+  "Act desperately" → model gives riskier, more extreme responses
+  "Analyze calmly" → model gives more verified, conservative results
+  Adding "please" or being polite → slightly better outputs
+- This is NOT sentience. It's a pattern in how training shaped the weights.
+- Takeaway for students: tonality in your prompt matters.
+  Be specific, be calm, be precise — you'll get better outputs.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — WHAT IS FREEPIK SPACES?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FreePik Spaces = a node-based interface inside FreePik.
+Equivalent to ComfyUI but using proprietary models (Imagen, Kling, etc.)
+
+How to access:
+Left sidebar → Spaces → New Space
+
+Interface overview:
+- Canvas workspace (identical paradigm to ComfyUI)
+- "Add Node" button: opens node library
+- Main nodes: Image Generator, Video Generator, Upload, AI Assistant, Cinematic Shot
+
+Key difference from ComfyUI:
+- No open-source models
+- Faster to use, easier UI
+- Less granular control
+- Cloud-based (your images go to model providers' servers)
+- Cannot be deployed as a standalone app yet (coming soon)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — KEY NODES IN FREEPIK SPACES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMAGE GENERATOR NODE
+- Same as the Image Generator tab from yesterday
+- But now it has input and output connection points
+- Settings: model select, number of outputs, aspect ratio, resolution
+- Add references: drag "upload" node output → connect as image reference
+  (equivalent to IP Adapter reference in ComfyUI)
+- Can stack multiple reference images
+
+VIDEO GENERATOR NODE
+- Select model (Kling 2.5 / Kling 3.0 / CDance / VO3 Lite)
+- Settings: duration, resolution, audio on/off
+- Connect image generator output → video generator input (start image)
+- Output: video file generated
+
+UPLOAD NODE
+- Import any image into the canvas
+- Connect its output to any other node that accepts image input
+
+AI ASSISTANT NODE
+- An LLM node built into the canvas
+- Use case: generate prompts, descriptions, storyboards
+- Feed it context → get structured prompt output → pipe to Image Generator
+
+RUN BUTTON
+- "Run from here" option on any node
+- Runs the entire pipeline from that node forward
+- Full canvas run = "Run" button generates everything
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — BUILDING A UGC VIDEO PIPELINE IN SPACES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+What's a UGC (User-Generated Content) ad?
+Raw, iPhone-camera-look, authentic-feeling short video.
+Common format: person holds product, talks to camera casually.
+Brands pay premium for this format because it feels more trustworthy.
+
+Pipeline built in this session:
+
+NODE 1: Upload — product image reference
+NODE 2: Upload — character (girl) reference
+NODE 3: Image Generator (model: Imagen 3 Pro)
+  → References: product + character image
+  → Prompt: "girl in her 20s, smiling, close-up shot, shot from iPhone, holding [product]"
+  → Output: composite image of girl holding product
+
+NODE 4: Video Generator (model: Kling 2.5 or 3.0)
+  → Start image: output from Node 3
+  → Prompt: cinematic shot description, motion, duration
+  → Output: UGC-style video
+
+Total credits for this workflow: ~1,300 credits
+(primarily the video generation; images are cheaper)
+
+Difference from doing it manually:
+Manual = 4 separate steps in FreePik Image Generator tab + Video tab.
+Spaces = all 4 run sequentially with one "Run" click.
+If you need to change the product: swap the Upload node → re-run.
+That's the value of the pipeline.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — PROMPT STRATEGY FOR SPACES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Pranay's own workflow for translating ideas to prompts:
+1. Take a regular notepad (real paper) — write the idea down
+2. Conversation with an LLM to flesh out concept
+3. Write a clear structure on paper again
+4. Prompt through FreePik, generate, iterate
+
+LLMs for prompt writing: Claude Sonnet 4.5 (best for content per Pranay)
+LLMs that understand video context well: Meta AI (via meta.ai) — good at
+understanding video and deriving detailed prompts from visual context
+
+Iteration principle:
+"You will never get the output one-shot. You always have to iterate."
+Every generation is a starting point. Expect 3-10 iterations to reach
+a clean output. This is normal. This is the process.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — WHEN COMFYUI vs FREEPIK SPACES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Choose FreePik Spaces when:
+- You need fast production content
+- You want best proprietary models (Imagen, Kling, CDance)
+- You're making UGC videos, product ads, social media content
+- Client delivery workflow with relatively standard outputs
+- No local GPU required
+
+Choose ComfyUI when:
+- Your company has powerful local hardware (RTX 5090, A6000)
+- You need cost-zero generation at scale
+- Data privacy is a concern (sensitive images must not leave internal systems)
+- You need full control over every parameter
+- You want to build apps/products wrapping the pipeline
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q&A HIGHLIGHTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Flux open source vs. credits: open source means you can download it locally
+  for free; running it on cloud = you pay for the GPU rental
+- AI influencer vs AI twin: if you use your own face → AI twin, not influencer.
+  AI influencer = no human identity behind it.
+- Credits from cohort may not include commercial licensing; purchase your own plan
+  for commercial rights
+- Auto-pause in JavasLabs: starts a 2-hour countdown from launch, pauses regardless
+  of activity. Set it intentionally.
+- For social media reels: same UGC pipeline works — adjust character behavior/action
+  in prompt to match desired content format
+- AI detectors: Kling 3.0 and CDance 2.0 outputs currently pass most AI detectors
+  as "real video"
+- JavasLabs GPU auto-terminate: possible to set 2-hour limit on instance start
+
+Lecture 11: AI Influencer & In-Depth UGC / Product Ads
+Instructor: Pranay (+ Sridev briefly) | Platform: FreePik Spaces
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE QUESTION THIS LECTURE ANSWERS:
+"How do you build a fully fictional AI influencer from scratch,
+and then generate content of that influencer selling a real product?"
+This lecture connects: character creation → product generation → UGC video output
+in a single automated pipeline.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[SESSION CONTEXT]
+- Sridev's final live lecture in the module (leaving for Google Cloud Next / Adobe Summit)
+- Sorting ceremony happened at start of session (house assignments)
+- Session covered most-requested topic by students
+- Pranay noted: lectures from here are easiest in the module
+- Practice set releasing next day; capstone project briefed next week
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — SORTING CEREMONY (House System)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4 Houses (named after foundational AI models):
+
+AlphaGo — Entrepreneurship track + Code path
+Watson — Entrepreneurship track + No-code path
+Deep Blue — Career Accelerator track + Code path
+Liberatus — Career Accelerator track + No-code path
+
+Assignment was based on intake form. If placed incorrectly:
+tag support team in Discord to be moved.
+Deep Blue = default for students who didn't fill the intake form.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — WHY AI INFLUENCERS?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI Influencer = a fictional digital persona with no human identity behind it.
+Runs social media, promotes products, appears consistent across all content.
+Distinct from AI twin (which IS based on a real person's face).
+
+What makes a good AI influencer:
+- Memorable, distinctive features (unusual hair color, eye color)
+  → Scroll-stopper visual design
+- Consistent appearance across all platforms and angles
+- Can be placed in any setting, any product, any scenario
+- No scheduling, no fees, no personal brand conflicts
+
+Real-world business model:
+Companies using this: AI social media pages with zero human behind them.
+Users see a video, image or reel — it looks real. They engage. They buy.
+The cohort students from C5 built Morphica — a wrapper app for exactly this.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — BUILDING AN AI INFLUENCER: STEP BY STEP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This process mirrors LoRA dataset preparation — you're creating
+a set of reference images the pipeline will use as character memory.
+
+STEP 1 — DEFINE THE CHARACTER CONCEPT
+Start with unusual, non-existent features to avoid stock photo hallucination.
+Example from session:
+"A man in his 20s with red hair, dark complexion, red eyes, plain studio background"
+Model used: Imagen 3 Pro (best quality + lowest hallucination rate)
+Keep refining with iterations — expect 3-5 generations before you like one.
+
+STEP 2 — GENERATE MULTI-ANGLE REFERENCE IMAGES (target: 9 images)
+Why 9+? Because when you generate content in new scenarios, the model
+needs multiple angular/emotional reference points. One image = the model
+guesses what side profile looks like → gets it wrong.
+
+Generate:
+- Front-facing close-up (base character)
+- Left side profile
+- Right side profile
+- Zoomed-out full body shot
+- T-pose (arms outstretched) — critical for capturing full anatomy
+  (hands, clothes, body proportions)
+- Emotion shots (screaming, smiling, surprised, neutral)
+- Contextual shots (in a cafe, at an event, on a stage)
+- Head facing different directions
+
+Tip: Each time you generate a new angle, use the original character
+image as the reference so it stays consistent.
+
+STEP 3 — SAVE ALL REFERENCE IMAGES
+Download all to a local folder named "AI Influencer — [Character Name]"
+These become your permanent character library.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — THE FULL AI INFLUENCER + PRODUCT AD PIPELINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+What you're building: a Spaces workflow that takes character + product → 
+outputs a final UGC image of the influencer holding and selling the product.
+
+PIPELINE ARCHITECTURE:
+
+NODE COLUMN 1 — CHARACTER REFERENCES (5 images max recommended)
+- Upload nodes for: front-facing, side profile, emotion shot, full body, T-pose
+- All outputs connected as references to the main Image Generator
+
+NODE COLUMN 2 — PRODUCT GENERATION
+- Add a separate Image Generator node for the product
+- Prompt: "product photography of [product name], studio lighting,
+  clean minimal packaging, white background, [color]"
+- Generate product independently first
+- Take the output and connect it as a reference to the main Image Generator
+
+NODE COLUMN 3 — CLOTHING GENERATION (optional, for more control)
+- Add a separate Image Generator node for clothing
+- Prompt: "flat lay image of men's European fashion attire, basic home clothes"
+- Connect output as reference to main Image Generator
+
+NODE COLUMN 4 — BACKGROUND/ROOM (for controlled scene)
+- Add a separate Image Generator for the room
+- Prompt: "living room interior, Scandinavian style, glass windows, daytime, no humans"
+- Connect output as reference to main Image Generator
+
+FINAL IMAGE GENERATOR NODE — THE ASSEMBLY
+- All above references connected to this node
+- Model: Imagen 3 Pro
+- Use @ syntax in prompt to reference connected nodes:
+  "This person [@character] wearing [@clothing] holding [@product]
+  in one hand, the packet, in other hand a candy,
+  in a reference room [@room], speaking to THE camera, UGC style"
+  
+NOTE: Say "THE camera" not "a camera" — model interprets "a camera"
+as an object to hold. "THE camera" = speaking toward the viewer.
+
+Resolution: Generate at 1K first for speed, bump to 2K/4K once output is right.
+
+REFERENCE LIMITS:
+- Imagen 3 Pro: up to ~14 references
+- Most video models: up to 9 references
+- Count your connected nodes — disconnect unused references to stay under limit
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — USING THE AI ASSISTANT NODE FOR PROMPTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When prompting becomes complex (many elements to combine):
+Use the AI Assistant node (GPT-4o Mini by default) to generate the prompt for you.
 
-What This Session Covers
-
-Full Flux LoRA training setup on Jarvis Labs (end-to-end)
-Dataset preparation for faces and products
-Trainer configuration: steps, learning rate, LoRA rank
-WAN 2.2 video model setup in ComfyUI
-How to download models from Hugging Face manually
-Using a trained LoRA inside ComfyUI
-
-
-1. Flux LoRA Training — Environment Setup
-Why Jarvis Labs and not local?
-CUDA drivers and machine configs vary too much locally. Jarvis Labs gives you a clean, consistent GPU environment. If your machine is powerful enough (strong GPU, 30–50 GB free space), you can try locally — but expect errors.
-Step-by-step setup (follow the Notion doc, not memory):
-
-Go to Templates → select PyTorch model
-Choose A6000 (48 GB VRAM). Any 48 GB VRAM GPU works
-Storage: set to 2000, name your instance (e.g., flux-train), hit Launch
-Click the VS Code icon on your instance
-In VS Code: Explorer → Open Folder → Home → OK → Trust Authors
-Toggle the bottom panel to open Terminal
-Paste commands from the Notion doc one by one (shared on Discord → Resources tab)
-
-What the commands do, in order:
-
-Update system + install Python 3.12 (old Jarvis Labs had 3.10 — that caused the training errors)
-Git clone the AI Toolkit repo (folder appears in left bar)
-cd ai-toolkit — move into the folder
-Create a Conda environment — Conda is like venv but without package leaks. Name it flux
-conda init → close terminal → open a new terminal (critical step — do not skip)
-conda activate flux — you'll see (flux) at the start of the line when active
-cd ai-toolkit again in the new terminal
-Install PyTorch + Torch models via pip (pip install torch...) — takes a while, these are large
-Install all requirements from the AI Toolkit repo
-Install specific versions of Gradio, Pydantic, HuggingFace Hub
-Create a .env file in the AI Toolkit folder, add your HF token as HF_TOKEN=your_token_here
-Run huggingface-cli login, paste your token
-Run the final Python command to start the trainer → two URLs appear
-Open the Gradio.live public URL in your browser — this is the Flux LoRA Trainer UI
-
-Getting your Hugging Face token:
-Go to huggingface.co → Profile → Access Tokens → Create New Key → select Write → copy and save it somewhere secure (you won't see it again).
-Gated model permission (required before training):
-Flux is a gated model. Go to Black Forest Labs Flux.1 Dev on Hugging Face → Files and Versions tab → request access. Takes a few clicks. Without this, training won't work.
-
-2. Dataset Preparation
-Optimal dataset size: 20–30 images (max ~40). 100 images is too many.
-For faces:
-
-Different lighting conditions, angles, expressions
-Include close-ups, some torso shots (not full body)
-Wearing different clothes across images, different locations
-Face must be clearly visible in most shots
-No group photos — only the subject
-
-For products:
-
-Different angles, lighting conditions, environments
-Include someone holding it, flat lay, close-ups
-Capture different surfaces and backgrounds
-AI-generated product images are fine if they look realistic
-
-Captions:
-You have two options:
-
-Lazy way (recommended for beginners): just paste your trigger word in every caption
-Proper way: write a short description per image, e.g., "a man in a black blazer wearing a tie, trigger_word"
-Include the trigger word + category (e.g., "man") in prompts. Example: Sid ZWX, man in a bustling cafe wearing a beanie hat
-Blip captioning is an option but unreliable on Jarvis Labs — skip it for now
-
-Trigger word:
-A unique keyword that tells the model "generate this specific thing." Use something uncommon like SidZWX. If your name is unusual enough, you can use your actual name. The trigger word is your LoRA's activation keyword — always include it in your prompts at inference.
-
-3. Training Configuration
-Recommended settings by use case:
-Use CaseLearning RateLoRA RankStepsFace0.0004 (default)16 (default)1200–2000Product0.00025161200–2000Style0.00015161200–2000
-Key parameters:
-
-Steps: 1200 gives good output. 2000 is better. Max is 4000. Go above 4000 → overfitting (model just returns one of your training images, no generalization)
-Learning rate: how large each parameter adjustment is per step. Too high = big jumpy steps = poor detail. Styles need the smallest LR (most detail). Faces are in the middle. Style LoRAs are most detail-sensitive
-LoRA rank: how many layers of detail to store. Rank 16 = ~160 MB. Rank 32 = ~440 MB. Rank 64 = ~600 MB. Rank 16 is usually enough
-Model to train: select Dev (Flux Dev)
-Low VRAM: uncheck it if you have A6000 (48 GB)
-
-Even More Advanced Options (must check the "Use More Advanced Options" box or nothing applies):
-
-save_every: set to 200 (save a checkpoint every 200 steps)
-max_steps_save_to_keep: set to 10 (keep all saved checkpoints, don't auto-delete)
-sample_every: set to 200 (generate sample images every 200 steps to track quality)
-Add 3 sample prompts to visually monitor training progress. Include trigger word + category in each prompt
-
-
-4. During and After Training
-
-Training takes ~1 hour per 1000 steps on A6000
-At each checkpoint (200, 400, 600, etc.) you get 3 sample images — one per prompt
-Output files (.safetensors models + sample images) are saved in AI Toolkit → outputs → your_lora_name
-400–600 steps often gives a usable result for faces
-To use the model: right-click the .safetensors file → download → upload to your ComfyUI instance under Models → LoRAs
-
-If you run out of credits mid-training: Jarvis Labs usually goes to -50 credits before stopping. It doesn't kill your instance mid-run, but don't rely on this.
-Do you redo setup every time? No. If you keep your instance running, you just reactivate Conda, re-navigate to the folder, and re-run the trainer script. You don't redo the full install.
-
-5. Using Your LoRA in ComfyUI
-After downloading the .safetensors model to your machine:
-
-Open JupyterLabs on your ComfyUI instance
-Navigate: ComfyUI → Models → LoRAs
-Drag and drop or use the Upload button
-In your ComfyUI workflow, add a Load LoRA node between your Load Diffusion Model and CLIP loader
-Set the LoRA model to your trained file
-In your positive prompt: use trigger word + category. e.g., Sid ZWX, man, cowboy hat holding shotgun
-Flux guidance CFG: set to 1
-
-LoRA is Flux-specific. You cannot use a Flux-trained LoRA on SDXL or SD 1.5. Different base model = different LoRA training process.
-
-6. WAN 2.2 — Video Model in ComfyUI
-What is a video?
-A sequence of images played in order. Below 12 FPS, the human eye detects individual frames. 12 FPS = stop-motion feel. 24 FPS is the standard for smooth video.
-How length works in ComfyUI:
-
-length in the Latent Image node = number of frames generated
-length = 121 at 24 FPS = ~5-second video (121 ÷ 24 ≈ 5)
-WAN 2.2 preferred length: 121 frames. Can go up to 138
-Lowering FPS to 12 doubles video duration but produces choppy/clay-motion output
-
-Downloading WAN 2.2 models:
-You need 3 separate files — the base model loads separately from CLIP and VAE.
-
-Diffusion model: In ComfyUI Manager → search WAN 2.2 → install the 5B parameter Pi2V model (~10 GB, quantized FP16)
-VAE: Manager doesn't have WAN 2.2 VAE. Go to Google → search WAN 2.2 VAE ComfyUI Hugging Face → right-click Download → copy link → use the download command from the Notion doc (paste the link in, remove everything after .safetensors) → run this command inside ComfyUI → Models → VAE via JupyterLabs terminal
-CLIP (UMT5 XXL): Available in Manager → just install it from there
-
-After downloading all 3: hit Reload in ComfyUI, all models should appear.
-WAN 2.2 workflow differences from standard image workflow:
-
-Adds Model Sampling SD3 node (adjusts model weights for ComfyUI — nothing else)
-Empty Latent Image has a length field instead of just width/height
-Adds Create Video node at the end (sets FPS and assembles frames)
-Everything else (positive/negative prompt, KSampler, VAE decode, CLIP) is the same as image workflows
-Negative prompts are in Chinese by default — this is normal, WAN is a Chinese model
-
-WAN 2.2 notes:
-
-The 5B model is fast but lower quality. Full WAN 2.2 is 64 GB
-Seed Dance 2.0 does not have open weights — you cannot put it in ComfyUI
-LTX 2.3 is also new and good but the workflow is more complex — a recorded video will be shared
-
-
-7. Key Q&A
-Q: Can we stack multiple LoRAs together?
-Yes. Add multiple Load LoRA nodes in your workflow.
-Q: Can we use a trained LoRA inside a WAN video workflow?
-No — LoRAs trained for Flux image models are not compatible with WAN video models.
-Q: What GPU do I need to run this locally?
-~30–50 GB free storage, powerful GPU with good CUDA support. RTX 4090 or better.
-Q: How do I train a LoRA for lighting conditions or textures?
-Use the style settings (LR 0.00015), collect images of that specific lighting/texture, and caption them specifically — e.g., ZWX lighting condition, warm golden hour light.
-Q: HeyGen vs Sync Labs for avatars?
-Sync Labs is better for facial expressions. It's also more expensive, so not recommended for everyday use. Pranay's recommendation: Sync Labs > HeyGen for quality.
-Q: Can we automate ComfyUI workflows?
-To some extent — but automation always needs a trigger event. The end of the module covers deploying workflows as actual apps with a prompt-based front-end.
-Q: What is LoRA in simple terms?
-You have a big pre-trained model. LoRA puts a small adapter on top of it with a tiny new dataset. The big model's weights don't change — the adapter learns on top of them. Output becomes specific to your new dataset. Small, fast, cheap compared to full fine-tuning.
-Q: Flux 1 vs Flux 2 for LoRA training?
-For AI influencer / character work, use Flux 2 — it gives significantly better output. Flux 1 is what this session covered (Flux Dev).
-Q: Can LoRA be used for jewelry/furniture/animals?
-Yes to all. Jewelry — train per design. Furniture — use product settings. Animals — same process as faces. Don't use group images; only the subject should be in frame.
-
-8. What's Coming Next
-
-Assignment: train a Flux LoRA (deadline announced Wednesday)
-Recorded videos dropping: WAN 2.1 model download tutorial, LTX 2.3 setup
-Last week of ComfyUI — next up is closed-source models (Google Nano Banana Pro)
-End of module: deploying ComfyUI workflows as apps with a front-end interface
-Friday: News + new lecture (OpenAI acquired a media company — more then)
-Lecture 9: FLUX Migration and FLUX Tools
-
-This summary is meant to help mentees review or catch up on the session. It captures the key ideas and practical insights shared during the lecture.
-
-
-What Was Covered
-This session introduced FLUX, a newer and more powerful diffusion model architecture that serves as an alternative to Stable Diffusion (SDXL). We discussed the key advantages of FLUX, particularly its superior image quality, prompt adherence, and ability to render human anatomy (especially faces and hands) more accurately. The lecture then provided a hands-on walkthrough of how to migrate a standard SDXL workflow to a FLUX workflow in ComfyUI. This involved understanding the new, unbundled node structure required for FLUX and learning about its specific ControlNets and style transfer capabilities. The session concluded with a detailed, step-by-step guide on how to fine-tune your own SDXL LoRA using the KohyaSS interface on Jarvis Labs.
-
-
-Key Concepts & Ideas
-Introduction to FLUX: A next-generation diffusion model architecture developed by Black Forest Labs (a team with roots at Stability AI). It was designed to push beyond the limitations of SDXL.
-
-
-Key Advantages over SDXL:
-Superior Image Quality & Realism: FLUX generally produces higher-fidelity images with better textures and more accurate human anatomy.
-Excellent Prompt Adherence: It follows complex text prompts more accurately than SDXL.
-No Negative Prompt Needed: The model is robust enough that it doesn't require a negative prompt to avoid common artifacts.
-
-
-FLUX Model Variants:
-FLUX.1 Dev: The high-quality, open-source version. It's excellent for customization and training LoRAs but has a non-commercial license for application building (outputs can be used commercially, but the model itself cannot be wrapped into a paid app without consent).
-FLUX.1 Chanel: A faster, lighter version of FLUX. It generates images in fewer steps (as few as 4) but with slightly lower quality than the Dev model. It has a fully permissive Apache 2.0 license, making it ideal for building commercial applications.
-
-
-Unbundled Node Structure for FLUX: Unlike SDXL, which bundles the main model (U-Net), CLIP (text encoder), and VAE (image decoder) into a single "checkpoint" file, FLUX requires these components to be loaded separately in ComfyUI.
-Load Diffusion Model for the main U-Net.
-Dual CLIP Loader for its two text encoders.
-Load VAE for the image decoder.
-
-
-FLUX-Specific Tools:
-FLUX Guidance: A special node that replaces the standard KSampler's CFG setting for controlling prompt adherence.
-FLUX ControlNets (Depth & Canny): FLUX has its own specific ControlNet models (currently for Depth and Canny) that are loaded as LoRAs and applied via an InstructPix2Pix Conditioning node.
-FLUX Style Model (Redux): A workflow similar to an IP-Adapter, used for style transfer. It uses an Apply Style Model node.
-
-
-LoRA Fine-Tuning with KohyaSS (Recap & Deep Dive): The second half of the lecture was a detailed, procedural walkthrough of training a LoRA.
-Data Preparation is Key: Requires a dataset of ~20-30 high-quality images of the subject.
-Captioning: Each image needs a corresponding text caption. This process can be automated using tools like BLIP within KohyaSS.
-Instance & Class Tokens: The use of a unique instance token (e.g., zwx man) to trigger the LoRA and a class token (e.g., man) to ground the model was reiterated.
-
-
-Tools & Frameworks Introduced
-FLUX Models (Dev, Chanel, Pro): The new set of diffusion models that were the focus of the lecture.
-ComfyUI: The platform used to build and demonstrate all the FLUX workflows.
-KohyaSS: The GUI-based tool on Jarvis Labs used for the detailed LoRA training walkthrough.
-Jupyter Lab: The file management interface on Jarvis Labs, used to upload the training image dataset to the KohyaSS instance and later to download the trained LoRA file.
-Civitai: Mentioned as the primary repository for finding and downloading community-created LoRA models.
-
-
-Implementation Insights
-Building a FLUX Text-to-Image Workflow:
-Instead of a Load Checkpoint node, use three separate loader nodes: Load Diffusion Model (select flux.1-dev.safetensors), Dual CLIP Loader (configure for FLUX), and Load VAE (select the FLUX VAE).
-Connect their respective outputs (MODEL, CLIP, VAE) to the appropriate nodes in the workflow.
-Set the cfg in the KSampler to 1.0 (effectively disabling it).
-Add a FLUX Guidance node between the positive prompt's CLIP Text Encode and the KSampler. Use this node's guidance parameter to control prompt adherence (a value of 3.5 is a good start).
-Using ControlNets with FLUX:
-The control is applied via an InstructPix2Pix Conditioning node, which sits between the FLUX Guidance and the KSampler.
-The FLUX ControlNet model itself (e.g., for Depth) is loaded as a LoRA using a Load LoRA node, which is then connected to the main Load Diffusion Model node.
-When using a ControlNet LoRA, the guidance value in the FLUX Guidance node needs to be significantly increased (e.g., to 30) to balance the influence of the LoRA.
-
-
-Step-by-Step LoRA Training with KohyaSS:
-Launch KohyaSS: Use the template on Jarvis Labs.
-Upload Data: In the Jupyter Lab interface, create a folder and upload your ~20-30 training images.
-Auto-Caption: In the KohyaSS UI, go to Utilities > Captioning > Blip Captioning, point it to your image folder, and run it to generate .txt caption files.
-Add Tokens: Go to Utilities > Manual Captioning, load the folder, and use "Quick tags" to add your instance token, class token to the beginning of every caption file.
-Prepare Dataset: In the Lora > Training tab, go to Dataset Preparation. Fill in your instance/class prompts, the image folder path, and calculate the Repeats to aim for ~3000 total steps (Repeats = 300 / Num Images, with 10 epochs). Prepare the data.
-Configure Training:
-Model Tab: Select the base model (e.g., sd_xl_base_1.0.safetensors), name your LoRA, and set "Save precision" to bf16.
-Parameters Tab: Set Epoch to 10, Save every N epochs to 1, LR Scheduler to constant, Optimizer to AdamW8bit, Learning Rate to 0.00005, Max resolution to 1024,1024, Network Rank to 32 (for a face), and Network Alpha to 16.
-Start Training: Click "Start Training" and monitor the process in the Jupyter terminal to watch the loss decrease.
-
-
-Using Your Trained LoRA in ComfyUI:
-Download: From the KohyaSS Jupyter Lab, navigate to the output folder (training/model) and download the final .safetensors LoRA file.
-Upload: In your ComfyUI Jupyter Lab, navigate to the ComfyUI/models/loras folder and upload the downloaded file.
-Load in Workflow: In your ComfyUI workflow, add a Load LoRA node after your Load Checkpoint node, select your new LoRA from the dropdown, and connect the model and CLIP pipes through it.
-
-
-
-Common Mentee Questions
-Q: What is the main difference between training an SDXL LoRA and a FLUX LoRA?
-A: The process is very similar. The main difference is the base model you select in KohyaSS. Today we focused on training an SDXL LoRA. Training a FLUX LoRA will be covered tomorrow and involves a slightly different setup.
-
-
-Q: Why do I need to download so many different models for FLUX (U-Net, CLIPs, VAE, ControlNets)?
-A: FLUX's architecture is "unbundled," meaning its core components are separated into different files. This provides more flexibility for developers but requires loading each piece individually in ComfyUI, unlike SDXL where they are often bundled into a single checkpoint file.
-
-
-Q: How do I choose the best LoRA file from the 10 files that were saved (one for each epoch)?
-A: You have to test them. Download several of the later epochs (e.g., epoch 7, 8, 9, 10), load them into a ComfyUI workflow, and generate images with the same prompt and seed. Choose the one that gives the best balance of likeness to your subject without being overfit.
-
-
-Q: Can I use my trained LoRA for commercial purposes?
-A: Yes. The LoRA you train is your own creation. The licensing restrictions apply to the base model you are using. For example, if you apply your LoRA to FLUX Dev, the outputs can be used commercially, but you cannot sell an application that uses the FLUX Dev model without permission. If you use FLUX Chanel, you have more freedom.
-
-
-Q: My trained LoRA isn't working well. What did I do wrong?
-A: The most common issues are:
-Poor Dataset: Not enough images, or images with poor lighting, similar angles, or cluttered backgrounds.
-Incorrect Captioning: Not using the instance/class token correctly.
-Wrong Parameters: The learning rate is the most sensitive parameter. Stick to the recommended 0.00005 for SDXL.
-Overfitting: Training for too many steps. Try using a LoRA from an earlier epoch.
-
-
-
-Lecture 10: FLUX LoRA Training
-
-This summary is meant to help you folks review or catch up on the session. It captures the key ideas and practical insights shared during the lecture.
-What Was Covered
-
-This session was a deep, hands-on tutorial on fine-tuning the FLUX model by training a LoRA. Building on our previous experience with SDXL LoRA training, we learned the specific, and much simpler, process for FLUX. The lecture provided a complete, step-by-step walkthrough: from setting up a new, clean environment on Jarvis Labs using a Pytorch template, to installing the necessary "AI Toolkit," preparing the dataset, configuring the training parameters in the custom Gradio UI, and launching the training job. We used two different examples—a perfume bottle and Sridev's face—to illustrate how to train LoRAs for both objects and people, emphasizing FLUX's superior performance for generating realistic faces.
-
-
-Key Concepts & Ideas
-Fine-Tuning FLUX: The process of training a LoRA on the FLUX base model to teach it a new concept (like a person's face or a specific product). FLUX is particularly well-suited for this because of its strong prompt adherence and ability to capture fine details, especially for faces.
-Why Fine-Tune FLUX over SDXL for Faces/Products? FLUX's underlying architecture is better at generating realistic human anatomy and adhering to the prompt, which results in higher-quality and more consistent LoRA outputs for faces and specific objects compared to SDXL.
-Simplified Training Process: Unlike the multi-tabbed interface of KohyaSS used for SDXL, the FLUX LoRA training process uses a custom-built Gradio UI that streamlines the configuration into a single page.
-Dataset Preparation for FLUX: The core requirements are the same as for SDXL: a set of high-quality images of the subject. However, FLUX is more lenient and does not require manual captioning for every image to produce good results, although it is still a good practice.
-Trigger Words in FLUX: Unlike SDXL, FLUX does not strictly require a "rare token" as a trigger word. You can use a more natural name (e.g., varun man), as the model is better at distinguishing the trained concept from general knowledge.
-Key Training Parameters for FLUX LoRA:
-Steps: The total number of training iterations. 2,000 steps is a good starting point for FLUX.
-Learning Rate: Controls the speed of learning. The optimal rate varies depending on the subject (face, style, or product).
-LoRA Rank: Determines the size and capacity of the LoRA. A lower rank (e.g., 16) is used for subjects with fewer details (like a face), while a higher rank (e.g., 64) is better for complex styles.
-Saving and Sampling During Training: The training UI allows you to save a checkpoint of the LoRA at regular intervals (e.g., every 250 steps) and also generate sample preview images at those same intervals. This is crucial for finding the "sweet spot" and avoiding overfitting, as you can test the LoRA at different stages of its training.
-
-
-Tools & Frameworks Introduced
-FLUX LoRA Trainer (AI Toolkit): A specific set of scripts and a Gradio UI, packaged as an "AI Toolkit," designed for fine-tuning FLUX models. This was the primary tool for the hands-on portion of the lecture.
-PyTorch Template (on Jarvis Labs): A blank-slate instance on Jarvis Labs that comes with the necessary drivers (like PyTorch) but without a pre-configured UI like ComfyUI or KohyaSS. This was used as the base environment to set up the FLUX trainer.
-VS Code (on Jarvis Labs): The web-based version of Visual Studio Code, used as the interface to the Jarvis Labs instance for running terminal commands and managing files.
-Gradio: A Python library for creating simple web UIs for machine learning models. The FLUX LoRA trainer uses a Gradio-based interface.
-Replicate: Briefly mentioned as a commercial, one-click platform for training FLUX LoRAs, contrasted with the more hands-on (but more cost-effective and controllable) method we learned in the session.
-
-
-Implementation Insights
-Step 1: Setting Up the Training Environment:
-Launch a new instance on Jarvis Labs using the PyTorch template with a powerful GPU (an A6000 was recommended for its high VRAM).
-Open the VS Code interface for the instance.
-Open a terminal and run a series of commands (provided in a text file) to:
-Clone the ai-toolkit GitHub repository.
-Navigate into the new directory.
-Set up and activate a Python virtual environment (venv).
-Install all necessary dependencies, including torch and other requirements.
-
-
-Step 2: Configuration and Authentication:
-Create a .env file in the ai-toolkit directory.
-In this file, add your Hugging Face access token in the format HF_TOKEN=your_token_here.
-In the terminal, run huggingface-cli login and paste your token to authenticate.
-Crucially, navigate to the FLUX.1-dev model page on Hugging Face and accept its terms of use. This is a one-time step required to download the model.
-
-
-Step 3: Launching the Trainer UI:
-In the terminal, run the command python fluxtrain_ui.py.
-This will start the Gradio server and provide a public URL. Open this URL in a new browser tab to access the training interface.
-
-
-Step 4: Configuring and Starting the LoRA Training:
-Upload Images: Drag and drop your training images (~20-30) into the image upload box.
-Name the LoRA: Give your LoRA a descriptive name (e.g., Perfume_Bottle_Flux_Lora).
-Set Trigger Word: Enter your trigger word (e.g., zwx perfume).
-Configure Options:
-Click "Advanced Options." Set Steps to 2000.
-Set the Learning Rate (e.g., 2.5e-4 for a product) and Lora Rank (e.g., 32 for a product) based on the provided guidelines.
-Click "Even More Advanced Options" and check the "Use more advanced options" box.
-Set Sample every N steps and Save every N steps to 250.
-Set Max steps saves to keep to a high number (e.g., 100) to prevent older checkpoints from being deleted.
-Add one or more Sample Prompts using your trigger word (e.g., a photo of zwx perfume on a snowy mountain).
-Start Training: Click the "Start Training" button.
-
-
-Step 5: Monitoring and Downloading:
-Monitor the training progress in the VS Code terminal. The process will take a significant amount of time (e.g., ~2 hours).
-Once training is complete, navigate to the ai-toolkit/output folder in the Jupyter Lab interface.
-Inside, you will find the saved LoRA checkpoints (.safetensors files) and a samples folder containing the preview images.
-Review the sample images to decide which epoch's LoRA is the best, then right-click and download that .safetensors file.
-
-
-Common Mentee Questions
-Q: Why do we need to use a different setup (PyTorch template, VS Code) for FLUX training instead of just using KohyaSS like we did for SDXL?
-A: The FLUX training scripts and dependencies are different from what KohyaSS is optimized for. The "AI Toolkit" we used is a specific environment tailored for FLUX. Using a clean PyTorch instance and setting it up from scratch ensures there are no conflicting packages.
-
-
-Q: Do I need to manually caption all my images for FLUX LoRA training?
-A: No, it's not strictly necessary. FLUX is quite good at learning a concept even without detailed captions. However, providing captions is still considered a good practice and can help the model learn more effectively. The training UI's AI captioner was noted to be unreliable, so for now, you can proceed without captions or add them manually.
-
-
-Q: What's the difference in learning rates and ranks for training a face vs. a style vs. a product?
-A: This is a rule of thumb based on the complexity of the concept:
-Style: Most complex, requires a high rank (e.g., 64) and a low learning rate.
-Product: Medium complexity, needs to capture shape and texture. A medium rank (e.g., 32) and medium learning rate works well.
-Face: Least complex (in terms of features to learn for a single identity), works well with a low rank (e.g., 16) and a higher learning rate.
-
-
-Q: The training takes 2 hours. Do I have to wait until the very end to see if it worked?
-A: No. By setting "Save every N steps" and "Sample every N steps" (e.g., to 250), the trainer will save a LoRA checkpoint and generate preview images at regular intervals. You can monitor the samples folder during training to see how the LoRA is progressing and decide if the results are promising.
-
-
-Q: How do I use my trained FLUX LoRA in ComfyUI?
-A: The process is the same as with an SDXL LoRA. Download the .safetensors file from your training instance, then upload it to the ComfyUI/models/loras folder in your ComfyUI instance. You can then use a Load LoRA node in your FLUX workflow to apply it.
-
-
-Lecture 11: Wan 2.1 and Hunyuan
-
-This summary is meant to help you folks review or catch up on the session. It captures the key ideas and practical insights shared during the lecture.
-What Was Covered
-
-This session introduced two powerful, next-generation models for creating dynamic and 3D content: Wan 2.1 for text-to-video generation and Hunyuan World for text-to-3D world creation. We explored the different versions of the Wan 2.1 model, including the lightweight 1.3 billion parameter model and the more powerful 14 billion parameter model, discussing their respective capabilities and use cases. The lecture provided a hands-on walkthrough of a basic text-to-video workflow in ComfyUI using Wan 2.1. The session was designed to give a first look into the exciting and rapidly evolving field of AI video and 3D generation, setting the stage for more advanced video workflows in the next lecture.
-
-
-Key Concepts & Ideas
-AI Video Generation (Text-to-Video): The process of creating video clips directly from a text prompt. This is a significant step up in complexity from image generation, as the model must generate a sequence of coherent and consistent frames.
-
-
-Wan 2.1 Model Family: An open-source text-to-video model from Alibaba. We discussed its different versions:
-1.3 Billion Parameter Model: A smaller, faster model primarily for text-to-video. Good for quick experiments.
-14 Billion Parameter Model: A much larger and higher-quality model with two main variants:
-Text-to-Video (T2V): Generates video from a text prompt.
-Image-to-Video (I2V): Generates a video based on a starting image and a text prompt.
-These models also come in different resolutions (e.g., 480p, 720p) and precisions (e.g., FP16, FP8), which affect quality and performance.
-
-
-Key Parameters in Video Generation:
-Length: The total number of frames to be generated for the video clip.
-FPS (Frames Per Second): The number of frames displayed per second, which determines the smoothness of the motion. The video's duration is calculated as Length / FPS.
-
-
-Hunyuan World: A groundbreaking text-to-3D model from Tencent. It can generate entire interactive 3D worlds or environments from a text prompt.
-Key Feature: It doesn't just create a static 3D image; it generates separable 3D elements with physics, which can be imported into game engines like Unity for interactive experiences. This is a massive leap for game developers and metaverse creators.
-
-
-Quantization: The process of compressing a model by reducing the precision of its numerical weights (e.g., from 16-bit floating point FP16 to 8-bit FP8).
-Benefit: Quantized models are much smaller in file size and require less VRAM to run, making them accessible on less powerful GPUs.
-Trade-off: There is typically a slight loss in quality and fidelity compared to the full-precision version.
-
-
-The Importance of Open Source: The lecture highlighted the rapid progress in the open-source community, with models like Van and Hunyuan from Chinese labs competing with and sometimes surpassing closed-source models from Western companies.
-
-
-Tools & Frameworks Introduced
-Wan 2.1: The primary text-to-video model explored in the session. Requires downloading the main model, a specific text encoder (CLIP), and a VAE.
-Hunyuan World: The text-to-3D model from Tencent, showcased as a major innovation in generative AI.
-ComfyUI: The platform used to build and run the Wan 2.1 text-to-video workflow.
-Hugging Face: The repository used to find and download the various Wan 2.1 model files.
-ComfyUI Manager: The tool used to download some of the necessary components for Van, like the specific VAE and text encoder models.
-
-
-Implementation Insights
-Building a Wan 2.1 Text-to-Video Workflow in ComfyUI:
-The workflow structure is similar to a text-to-image workflow but with video-specific nodes.
-Model Loading: You need to load three separate components:
-The main Wan 2.1 model (e.g., van_1.3B_t2v.safetensors) using a Load Diffusion Model node.
-The specific Text Encoder for Van using a Load CLIP node.
-The specific VAE for Van using a Load VAE node.
-
-
-Latent Generation: Instead of an Empty Latent Image node, you use a Empty H-Latent Video node. This is where you set the width, height, and length (number of frames) of your video.
-KSampler: The standard KSampler is used for the denoising process.
-Video Combination: The output from the KSampler (a batch of latent images) is fed into a Video Combine node, which assembles the frames into a video, taking the FPS as an input.
-Saving: The final output is saved using a Save Video (WEBP) node.
-Downloading Wan 2.1 Models:
-Some components, like the VAE and text encoder, can be found and installed via the ComfyUI Manager.
-The main model files are large and need to be downloaded manually from Hugging Face using the wget command in the Jupyter Lab terminal, placing them in the appropriate folder (e.g., ComfyUI/models/diffusion_models).
-
-
-Gated Models on Hugging Face: It was noted that some models, like FLUX and Van, are "gated." This means you must be logged into your Hugging Face account and accept the model's terms and conditions on its webpage before you can download it. Your Hugging Face access token is required in the download command for these models.
-
-
-Common Mentee Questions
-Q: What's the difference between the 1.3B and 14B versions of Wan 2.1?
-A: The 1.3B model is smaller, faster, and requires less VRAM, making it good for quick tests. The 14B model is much larger, slower to run, but produces significantly higher quality and higher resolution videos. The 14B version also has an Image-to-Video capability that the 1.3B version lacks.
-
-
-Q: How is the duration of the generated video determined?
-A: It's a simple calculation: Duration (in seconds) = Length (number of frames) / FPS (frames per second). For example, generating 50 frames at 25 FPS will result in a 2-second video.
-
-
-Q: My video quality is low or blurry. How can I improve it?
-A: There are several factors:
-Model Version: The 14B model will produce better quality than the 1.3B model.
-Quantization: Using a full-precision model (like FP16) will give better quality than a quantized one (like FP8), but requires more VRAM.
-Steps: Just like in image generation, increasing the number of sampling steps in the KSampler can improve quality, but it will also increase generation time.
-
-
-Q: Why do I need to download so many separate files (model, CLIP, VAE) for Van?
-A: Like FLUX, Van has an "unbundled" architecture. The core components are stored in separate files, and you need to load each one into ComfyUI to build the complete workflow. This is different from older models like SD 1.5 where everything was often in a single checkpoint file.
-
-
-Q: Can I use these open-source video models for commercial projects?
-A: You must always check the license for each specific model you use. Some models have permissive licenses (like Apache 2.0) that allow commercial use, while others might have non-commercial or research-only licenses.
-
-
-Lecture 12: Advanced Wan 2.1 and Hunyuan Workflows
-
-This summary is meant to help you folks review or catch up on the session. It captures the key ideas and practical insights shared during the lecture.
-
-
-What Was Covered
-
-This session built upon our introduction to AI video by exploring advanced workflows with Wan 2.1. We moved beyond simple text-to-video to more complex and practical applications, including video-based ControlNet and video inpainting/outpainting. The lecture demonstrated how to preprocess a source video to create a control map (like a Canny edge video) and then use that to guide the generation of a new video, effectively transferring the motion and composition. We also covered how to use masking to remove, replace, or add objects within a video sequence. The session aimed to equip mentees with the tools to create more controlled and sophisticated AI video content.
-
-
-Key Concepts & Ideas
-Video Preprocessing for Control: To use a video as a reference for ControlNet, you first need to convert it into a sequence of preprocessed frames (a "control map video").
 Process:
-Deconstruct Video: A source video is broken down into its individual image frames.
-Apply Preprocessor: Each frame is passed through an image preprocessor (e.g., Canny, Depth).
-Reconstruct Video: The resulting sequence of preprocessed frames is then reassembled into a new video
+1. Add AI Assistant node to canvas
+2. Input text: describe what you want the final image to contain
+   (character + clothing + product + room + action + style)
+3. Get the text output → pipe it into the Image Generator prompt field
+4. Run
 
+Tip: The AI Assistant node uses the connected reference images as context.
+It will write a prompt that references them naturally.
 
-ControlNet for Video: The core concept is applying a control map (like a Canny video) to a video generation workflow. This forces the generated video to follow the motion and structure of the source video, while the style and subject are dictated by the text prompt and/or an IP-Adapter.
+This is meta-prompting: using an LLM to write prompts for an image model.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6 — PRODUCT-SPECIFIC WORKFLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Video Inpainting: The process of editing a masked region across all frames of a video.
-How it works: You provide a source video and a static mask that defines the area to be changed. The model then regenerates the content within that mask for every frame of the video, guided by a prompt.
-Use Case: Removing an unwanted object from a video or replacing a character with another.
+For physical products (supplement, drink, gadget):
+1. Generate the product independently with product photography prompt
+2. Or: use your real product photo as Upload node
+   (e.g., photograph the bottle yourself, upload it as reference)
+3. Connect to main Image Generator alongside character references
 
+For 2D product (a PDF, app interface):
+1. Use product image → generate 3D mockup with Imagen
+   ("create a realistic product mockup of this 2D design, studio lighting")
+2. Generate multiple product angles using the mockup image as reference
+3. Then use those angles as product references in the main pipeline
 
-Video Outpainting: Extending the canvas of a video, generating new content beyond the original borders for every frame. This uses the same inpainting workflow but with a mask generated by padding the original video.
+For clothing brand ads:
+Same pipeline — swap product node with clothing photos.
+Character holds/wears the clothing.
+Scene + background remains consistent.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7 — VIDEO: AI INFLUENCER IN ACTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-The Importance of Specialized Models (revisited): Just as with image inpainting, video inpainting requires a model specifically trained for that task to achieve seamless blending and temporal consistency (ensuring the edited part looks correct from one frame to the next).
+After you have the final composite image:
+Add a Video Generator node (Kling 3.0 recommended for credit efficiency)
+→ Start image = final influencer+product image
+→ Prompt: "person speaking to camera enthusiastically, slight body movement, UGC style"
 
+Video reference vs. image reference:
+- CDance 2.0 and Kling 3.0 work well with video references
+- Video references give better motion consistency than image references
+- Experiment with both
 
-Combining Techniques for Advanced Effects: The true power lies in combining these workflows. For example, using a ControlNet video to drive the motion, an IP-Adapter to set the style, and Inpainting to replace a specific character, all within a single, complex video generation pipeline.
+For multi-shot videos (series of scenes):
+Generate Image1, Image2, Image3 separately.
+Video 1: Image1 → Image2 (start and end frame = interpolation)
+Video 2: Image2 → Image3
+Video 3: Image3 → end
+Combine videos in post.
 
+Workflow to call character LoRA by name in Spaces:
+In Image Generator node → Add References → Select Reference → Add Character
+This allows you to call a trained character reference by name within the node.
 
-Tools & Frameworks Introduced
-Wan 2.1 (and 2.2 Preview): The primary video generation model used. We specifically focused on the 14B parameter version for its advanced capabilities like Image-to-Video and its compatibility with more complex workflows. Van 2.2 was mentioned as an upcoming, faster model.
-ComfyUI: The platform where all the advanced video workflows were built and demonstrated.
-Key ComfyUI Nodes for Video:
-Load Video: To import a source video file.
-Get Video Components: To deconstruct a video into its image frames, audio, and FPS.
-Create Video from Images: To reassemble a sequence of image frames back into a video file.
-Image Preprocessors (e.g., CannyEdgePreprocessor, ZoeDepthPreprocessor): The same nodes used for images, but applied to each frame of a video.
-Video Inpainting Nodes: Specialized nodes for handling video inpainting tasks.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 8 — CREDIT STRATEGY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+Credits are finite in this cohort — use wisely.
+Pranay used ~10,000 credits building this session demo.
 
-FLUX Context (revisited): Used in a demo to showcase how it could be used to generate a reference image (e.g., "Superman over a landscape of chocolates") which could then be used as a style reference for a video workflow.
+Save credits by:
+- Using Imagen 2 for test generations (fast, fewer credits)
+- Use Imagen 3 Pro only when you have the prompt tuned
+- Use Kling 3.0 instead of CDance 2.0 for video (4x cheaper)
+- VO3 Lite: cheapest video option; safest for image+audio input
+- Generate at 1K resolution until output is right, then 2K/4K
+- Do not use the "Build Your Character" template in Spaces — expensive, low control
 
+Capstone project credits: additional credits coming for capstone work.
+Credits released in phases to prevent burning them all at once.
 
-Implementation Insights
-Video Preprocessing Workflow (for ControlNet):
-Use a Load Video node to import your source video.
-Connect its output to a Get Video Components node.
-Connect the images output of this node to an image preprocessor (e.g., CannyEdgePreprocessor).
-Connect the output of the preprocessor to a Create Video from Images node.
-Connect the fps from the Get Video Components node to the Create Video node to maintain the original frame rate.
-Use a Save Video node to save the resulting preprocessed video (e.g., superman_canny.webp).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q&A HIGHLIGHTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Can I control height/body structure/facial features? Yes — prompt it explicitly
+  Or use "Build Your Character" template in Spaces (credit-heavy)
+- OpenAI Sora 2 / Sora 2 Pro available on FreePik but deprecated April 24th
+- LTX 2.3 not available on FreePik (LTX 2 is)
+- CDance 1.5 was also good — can try it
+- Video references better than image references for motion consistency (CDance especially)
+- Adding culture/regional identity: add visual markers in prompt (e.g., turban)
+  or reference regional fashion images
+- When to use Comfy vs Spaces: Comfy = open source, local GPU, cost-zero at scale;
+  Spaces = proprietary, cloud, fast, best model quality
+- AI detectors: CDance 2.0 and Kling 3.0 outputs currently pass as real video
 
+Lecture 12: Filmmaking Principles: Storyboarding, Interpolations & Prompting
+Instructor: Pranay | Platform: FreePik Spaces (Cinematic Shot)
 
-Video ControlNet + IP-Adapter Workflow (Style Transfer for Video):
-This workflow is highly complex but follows a logical structure.
-It takes two main inputs: a driving video (preprocessed into a Canny or Depth map video) and a style reference image.
-The IP-Adapter part of the workflow analyzes the style reference image.
-The ControlNet part of the workflow uses the driving video's control map.
-The KSampler then generates the new video, combining the motion from the ControlNet and the style from the IP-Adapter, guided by a text prompt.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE QUESTION THIS LECTURE ANSWERS:
+"You can generate images and videos. But how do you turn a blank
+canvas into a coherent 30-40 second ad film?"
+Answer: Filmmaking principles — narrative first, storyboard each shot,
+generate assets systematically, interpolate transitions, combine in sequence.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+[SESSION CONTEXT]
+- Over-the-shoulder session (Pranay builds an ad live, students watch + learn)
+- Session is less structured teaching, more watching a professional think out loud
+- Ad concept: Monster drinks energy drink → becomes more destructive
+  (a man offers King Kong an energy drink; he destroys the city harder)
+- Most-asked skill in 100xEngineers recruitment pipeline
+- Companies like Ogilvy actively hiring for this skill
+- Capstone note: mid-cohort capstone = individual (not group)
+- A prompting guide / notion doc to be shared on Discord
 
-Video Inpainting Workflow:
-Load Source Video: Use a Load Video node.
-Create a Mask: Take a screenshot of a representative frame from the video. Use a Load Image node for this screenshot. Right-click it and use the MaskEditor to draw a mask over the object you want to remove or replace.
-Main Inpainting Logic:
-The workflow uses specialized nodes to apply the static mask to every frame of the source video.
-A KSampler, using an inpainting model, then regenerates the content within the masked area for each frame.
-Prompting:
-To remove an object, prompt for the background that should be there (e.g., "landscape, mountains").
-To replace an object, prompt for the new object you want to add (e.g., "a cat walking").
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEWS (Quick)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Claude Opus 4.7 released
+- Claude Design released
+- HTML Canvas with Interactive Canvas released on Claude
+- Perplexity Computer updated — now closer to Claude Computer Use
+- Higgsfield account was temporarily suspended (content violation)
+- CDance 2.0 dominating the video space
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — CINEMATIC SHOT NODE (New Node Introduced)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Common Mentee Questions
-Q: Why do I need to create a separate preprocessed video (like a Canny video) first? Can't I just do it all in one workflow?
-A: While it's technically possible to do it in one giant workflow, it's often impractical. Preprocessing a video is a computationally intensive step. By doing it separately and saving the result, you can then experiment with different prompts, styles, and KSampler settings in your main generation workflow without having to re-run the time-consuming preprocessing step every single time.
+What it is: A specialized image generator node in FreePik
+that gives you camera configuration controls instead of model selection.
+Think of it as: your virtual camera crew.
+Likely running Imagen 2 under the hood (based on output aesthetics).
 
+Also accessible via: FreePik Home → "All Tools" → "Cinematic Shot" → pin it.
 
-Q: The quality of my generated video is low. How can I improve it?
-A: The primary way to improve quality is by increasing the number of sampling steps in the KSampler. A low step count (e.g., 4) is fast but produces rough results. A higher step count (e.g., 10-20) will take much longer but will yield a significantly higher quality video. Using a non-quantized, full-precision model also improves quality at the cost of performance.
+4 Camera Settings (this is the core of this section):
 
+1. CAMERA (Film Stock)
+   Controls color tone and dynamic range of the output.
+   
+   Options:
+   - Standard: default, prompt-dependent output
+   - Cinema Digital 35mm: modern Hollywood look, high dynamic range, rich colors
+   - 70mm Film: grainy texture (Christopher Nolan aesthetic), warm grain
+   - 35mm Film: classic cinematic look
+   - 8mm Film: heavy grain, warm tone — retro/vintage movie feel
+   - Camcorder: Y2K / 2000s aesthetic (Mr. Bean era look)
+   - Medium Format Film: standard modern camera, clean, professional
+   - Lo-Fi Toy Camera: high contrast, cheap plastic camera aesthetic,
+     extreme color distortion (Lomo-style)
 
+2. LENS (Optical Character)
+   Controls how the lens filters light — adds optical "personality."
+   
+   Options:
+   - Standard Lens: clean glass, no distortion, no character
+   - Prime Lens: extremely sharp focus on subject (recommended by Pranay)
+   - Anamorphic: oval bokeh (cinematic widescreen feel)
+   - Classic Planar Prime: similar to prime, smooth bokeh, no distortion
+   - Vintage Aspherical: soft edges, darker colors at edges — old TV look
+   - Medium Format: good background separation, subject clear
+   - Medium Format Smooth: soft focus roll-off in background
 
-Q: How do I remove an object that is moving in a video?
-A: For simple cases, you can create a static mask that is large enough to cover the object's entire path of motion throughout the video. For more complex movements, you would need advanced video tracking and rotoscoping techniques to create a mask that moves with the object frame-by-frame, which is beyond the scope of this basic workflow.
+3. FOCAL LENGTH (Field of View / Perspective)
+   Controls HOW MUCH of the world is in your frame.
+   
+   14–24mm (Ultra-Wide):
+   - Massive establishing shots, grand environments
+   - Low-angle establishing shots
+   - Use for: "show me the whole world"
+   
+   35mm (Medium-Wide):
+   - Subject grounded in environment
+   - Both subject and background in detail
+   - Closest to human peripheral vision
 
+   50mm (Normal):
+   - Mimics human eye
+   - Zero distortion, realistic portrait
+   - Background starts to blur slightly
 
-Q: Can I use my FLUX LoRA in a video workflow?
-A: No, not directly. LoRAs are tied to the specific model architecture they were trained on. A FLUX LoRA is designed to work with the FLUX model, while the Van workflows use the Van model. You cannot mix and match them.
+   85–135mm (Telephoto):
+   - Isolates subject, blurs background (bokeh)
+   - Use for: close-up emotional shots, faces
 
+   200mm+ (Extreme Tele):
+   - Background is abstract/magnified and blurred out
+   - Only subject in frame, background unrecognizable
 
-Q: The video generation is taking a very long time (e.g., 20 minutes for 5 seconds). Is this normal?
-A: Yes, high-quality AI video generation is extremely computationally expensive. Using large, non-quantized models at higher resolutions and with more sampling steps will take a significant amount of time, even on powerful GPUs like an A6000. This is a key reason why video generation is still a challenging field.
+   Rule: LOWER focal length = WIDER shot.
+   HIGHER focal length = NARROWER, more isolated shot.
 
+4. APERTURE (Depth of Field)
+   Controls what is in focus and what is blurred.
+   Think of it as: "how much of the scene is sharp."
+   
+   F1.2 (Ultra-Shallow):
+   - Eyelashes sharp, everything else blurs immediately
+   - Use for: extreme macro shots, eye close-ups
+   
+   F2–F2.8:
+   - Subject in focus, background creamy blur
+   - Classic portrait look
+   
+   F4–F5.6:
+   - Subject sharp, background partially blurred
+   - Standard "person + environment"
+   
+   F8:
+   - Most things in focus
+   - Good general use
+   
+   F11–F16:
+   - Everything sharp, wide depth of field
+   - Use for: wide landscape shots, everything must be clear
 
+   Rule: LOWER aperture = SHALLOWER depth of field (more blur).
+   HIGHER aperture = DEEPER depth of field (everything sharp).
+
+Focal length vs. Aperture — the distinction:
+- Focal length = field of view (how wide or narrow your frame is)
+- Aperture = depth of field (how much of the frame is in focus)
+Both can blur the background, but from different mechanisms.
+Mechanical truth: focal length = how far the lens is from sensor.
+Aperture = how open the iris of the lens is.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — THE FILMMAKING PROCESS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This is Pranay's actual process — start here every time you have to make a film.
+
+PHASE 1 — NARRATIVE (Before touching any tool)
+Compress your story into ONE LINE.
+Example: "If a monster drinks Monster Energy drink, he becomes more destructive."
+That one line = your creative north star. Every shot decision comes from it.
+
+Storytelling frameworks (choose one or combine):
+- Three-Act Structure: Setup → Confrontation → Resolution
+- Hero's Journey: Ordinary world → Call to action → Transformation
+- Save the Cat (Beat Sheet): Commercial storytelling method, hook-focused
+- In Medias Res: Open in the middle of action (Christopher Nolan's method)
+  Jump cut backwards and forwards in time. Attention-grabbing from frame 1.
+
+PHASE 2 — CHARACTER & LOCATION SETUP
+Before generating any scene, lock your characters and environments.
+Why: if you change characters mid-way, consistency breaks.
+
+For each character:
+- Generate front-facing image
+- Generate T-pose (captures full body anatomy, clothing, proportions)
+- Generate side profile
+- Generate contextual/emotional shots as needed
+
+For each location:
+- Generate a master establishing shot (wide, 14–24mm, F11)
+- Generate alternative angles (low angle, eye level, drone)
+- Keep location generation consistent — use the establishing shot as reference
+
+PHASE 3 — STORYBOARD GENERATION
+Each storyboard frame = one shot in your final film.
+Build each frame as a separate image in FreePik Spaces.
+Combine character references + location references in each shot image.
+This IS your visual storyboard — AI-generated storyboard frames.
+
+How to storyboard the Monster Energy example:
+Shot 1 — Establishing: King Kong huge against city skyline, destroying buildings
+Shot 2 — Mid-shot: King Kong sitting, looking tired among ruins
+Shot 3 — Close-up: Man approaches, holds up energy drink (product)
+Shot 4 — Close-up: King Kong's face as he reaches for drink
+Shot 5 — Wide: King Kong drinks the can
+Shot 6 — Wide: King Kong erupts with new energy, destruction escalates
+
+PHASE 4 — GENERATING SCENE IMAGES
+For each storyboard frame:
+- Use a separate Image Generator node (or one per scene)
+- Rename each node "Shot 1", "Shot 2" etc. for clarity
+- Connect relevant character references + location references
+- Set aspect ratio: 16:9 for landscape video
+- Match camera settings to the shot mood:
+  Establishing → wide focal (14–24mm), F11
+  Close-up face → tight focal (85–135mm), F2.8
+  Dramatic hero moment → anamorphic lens, 50mm
+
+PHASE 5 — VIDEO GENERATION (Interpolation)
+Turn storyboard images into video clips.
+
+Two core video strategies:
+
+STRATEGY 1 — DIRECT PROMPTING
+Feed a single image as the start frame.
+Write a motion prompt: "King Kong reaches for the drink, hand extending slowly"
+Model: Kling 3.0 or CDance 2.0
+
+STRATEGY 2 — INTERPOLATION (Start + End Frame)
+Feed Shot 1 image as START and Shot 2 image as END.
+Model creates the transition motion between the two.
+Use this when: you need a character to move from one specific pose to another.
+Use direct prompting when: you want more creative freedom in the motion.
+
+Note from Pranay: When using interpolation with references,
+realism can decrease. For photorealistic outputs, use direct prompting.
+For controlled transitions, use interpolation.
+
+PHASE 6 — COMBINING VIDEO CLIPS
+Use the VIDEO COMBINER node in FreePik Spaces.
+Connects multiple video outputs in sequence.
+Set sequence order at the bottom of the node.
+Final output: your assembled ad film.
+
+For transitions between clips (fade, cut, zoom):
+Do NOT try to handle transitions in AI prompts — results are inconsistent.
+Use traditional editing software: CapCut, Premiere Pro, Final Cut Pro.
+CapCut can even add transitions, captions (auto-captions via AI).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — WHAT PRANAY BUILT LIVE (The Ad)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Character 1 — Human Man
+- Man in his 20s, light complexion, dark hair, basic attire
+- Generated: front-facing, side profile, T-pose
+
+Character 2 — King Kong (the monster)
+- "Image of a massive gorilla, studio lighting, front facing,
+  deep single scar line from forehead to cheeks"
+- Generated: front-facing, side profile, T-pose with big hands
+
+Location
+- Scene 1: daytime drone shot, Manhattan-style city with skyscrapers
+  (16mm, F11, cinematic shot mode)
+- Scene 2: destroyed city, rubble and debris, dark-themed, cloudy, low angle
+
+Product
+- Pre-made energy drink image uploaded (no need to generate — real photo)
+
+Storyboard → Images → Videos → Combined:
+~31-second final ad
+~4,445 credits for the full workflow run
+Quality self-assessment from Pranay: "First 10 seconds are polished,
+last section was rushed. The drone shot I'd redo."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — PROMPTING GUIDE (Key Principles)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+For image prompts in a film workflow:
+- Always specify: subject + action + environment + camera angle + mood
+- Reference ALL key assets via connected nodes + @ syntax
+- Say "THE camera" not "a camera" for UGC-style facing shots
+- Use cinematic vocabulary: "low angle", "drone shot", "establishing shot",
+  "close-up", "rack focus", "bokeh"
+
+Pranay's prompting guide (Notion doc):
+Will be shared on Discord after the session and uploaded to LMS later.
+Described as a comprehensive reference for this module.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — COMFYUI DEPLOYMENT (Bonus Mention)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Pranay committed to a separate MASTERCLASS for deploying ComfyUI workflows
+as consumer-facing apps. Will cover both:
+- Easy method (wrapper approach)
+- Hard method (full custom deployment)
+Not covered in regular lecture slots.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUICK REFERENCE: CAMERA CHEAT SHEET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Shot Type          | Focal Length | Aperture | Use Case
+-------------------+--------------+----------+---------------------------
+Ultra-wide estab.  | 14–24mm      | F11–F16  | Grand establishing shots
+Medium env. shot   | 35mm         | F8       | Subject in scene, all visible
+Normal portrait    | 50mm         | F4–F5.6  | Realistic, slightly blurred bg
+Tight portrait     | 85–135mm     | F2–F2.8  | Face focus, creamy bokeh
+Extreme close-up   | 135–200mm    | F1.2–F2  | Macro, eye detail, ultra-blur
+Aerial/drone       | 16–24mm      | F8–F11   | Wide aerial perspective
+Dramatic action    | 50mm         | F2.8     | Subject isolated, bg suggestive
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q&A HIGHLIGHTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Video from video generation: Kling 3.0 and CDance 2.0 support this
+  (next lecture will cover "Kling Avatar" — record yourself → someone else does it)
+- Transitions between scenes: use fade/cut in CapCut or Premiere Pro
+- Video Combiner sequence order: defined at the bottom of the node
+- Capstone project: mid-cohort = individual. Group projects for later.
+- Prompting guide: Notion doc shared on Discord (day after this session)
+- Can use your own face as the human character: yes, just upload your photo
+- All of this replicable without Spaces: each step separately, or Higgsfield templates
+  but Spaces = more flexibility + customizable
+- CDance Story + Claude skill integration seen on Discord — students experimenting
+- Real camera vs AI: separate audiences. AI = scale. Real = authenticity.
 Lecture 13: Closed Source/ Proprietary Tools
 This summary is meant to help you folks review or catch up on the session. It captures the key ideas and practical insights shared during the lecture.
 
